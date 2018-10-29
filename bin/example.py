@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-import ddspls
+import py_ddspls
 import numpy as np
 n = 1000
 mean = (0,0,0,0,0,0,0,0,0)
@@ -49,12 +49,12 @@ Xtest = {0:X0[id_test,:],1:X1[id_test,:],2:X2[id_test,:]}
 
 # Here is performed **regression analysis**
 R=2
-mod_0=ddspls.model.ddspls(Xtrain,Ytrain,lambd=lambd,R=R,mode="reg",verbose=True)
+mod_0=py_ddspls.model.ddspls(Xtrain,Ytrain,lambd=lambd,R=R,mode="reg",verbose=True)
 Y_est_reg = mod_0.predict(Xtest)		
-perf_model_reg = ddspls.model.perf_ddspls(Xs,Y,R=1,kfolds=3,n_lambd=3,NCORES=3,mode="reg")
+perf_model_reg = py_ddspls.model.perf_ddspls(Xs,Y,R=1,kfolds=3,n_lambd=3,NCORES=3,mode="reg")
 
 # Here is performed **classification analysis**
 R=1
-mod_0_classif=ddspls.model.ddspls(Xs,Y_bin,lambd=lambd,R=R,mode="clas",verbose=True)
+mod_0_classif=py_ddspls.model.ddspls(Xs,Y_bin,lambd=lambd,R=R,mode="clas",verbose=True)
 Y_est = mod_0_classif.predict(Xtest)
-perf_model_class = ddspls.model.perf_ddspls(Xs,Y_classif,R=1,kfolds=3,n_lambd=3,NCORES=3,mode="classif")
+perf_model_class = py_ddspls.model.perf_ddspls(Xs,Y_classif,R=1,kfolds=3,n_lambd=3,NCORES=3,mode="classif")

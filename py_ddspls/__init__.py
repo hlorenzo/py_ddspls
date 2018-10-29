@@ -1,1 +1,1 @@
-from ddspls import model
+from py_ddspls import model
