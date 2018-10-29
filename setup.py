@@ -5,7 +5,7 @@ def readme():
         return f.read()
     
 setup(name='py_ddspls',
-      version='1.0.2',
+      version='1.0.3',
       description='The multi data driven sparse pls package',
       long_description=readme(),
       url='http://github.com/hlorenzo/py_ddspls',

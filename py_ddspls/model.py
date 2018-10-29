@@ -3,12 +3,12 @@
 
 import numpy as np
 from pandas import get_dummies
-def warn(*args, **kwargs):
-    pass
-from warnings import warn as warnings_warn
-warnings_warn = warn
+import warnings
+with warnings.catch_warnings():
+	warnings.filterwarnings("ignore",category=DeprecationWarning)
+	import imp
+	from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn import preprocessing
-from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from multiprocessing import Pool
 import random as rd
 from itertools import product as itertools_product
@@ -134,7 +134,7 @@ def MddsPLS_core(Xs,Y,lambd=0,R=1,mode="reg",verbose=False):
 	q = Y_w.shape[1]
 	mu_y = Y_w.mean(0)
 	sd_y = Y_w.std(0)
-	Y_w = preprocessing.scale(Y_w)
+	Y_w = preprocessing.scale(Y_w*1.0)
 	# Create soft-thresholded matrices
 	Ms = {}
 	for i in range(K):
@@ -281,8 +281,8 @@ class ddspls:
 						iterat = iterat+1
 						for k in range(K):
 							if len(id_na[k])>0:
-								no_k = np.arrange(K)
-								no_k.delete(no_k ,k)
+								no_k = np.arange(K)
+								np.delete(no_k ,k)
 								i_k = id_na[k]
 								Xs_i = mod_0["s"]
 								Xs_i = np.delete(Xs_i, i_k, axis=0)
@@ -308,7 +308,9 @@ class ddspls:
 							for r in range(R):
 								n_new = np.sqrt(sum(np.square(mod["t_frak"][:,r])))
 								n_0 = np.sqrt(sum(np.square(mod_0["t_frak"][:,r])))
-								err = err + 1 - abs(np.dot(mod["t_frak"][:,r].T,mod_0["t_frak"][:,r]))/(n_new*n_0)
+								if n_new*n_0!=0:
+									err_r = 1 - abs(np.dot(mod["t_frak"][:,r].T,mod_0["t_frak"][:,r]))/(n_new*n_0)
+									err = err + err_r
 						else:
 							err = 0
 						if iterat >= maxIter_imput:
@@ -463,7 +465,9 @@ class ddspls:
 					newY.append(self.predict(t_i_new)[0])
 		return newY;
 	
-def perf_ddspls(Xs,Y,lambd_min=0,lambd_max=None,n_lambd=1,lambds=None,R=1,kfolds="loo",mode="reg",fold_fixed=None,maxIter_imput=5,errMin_imput=1e-9,NCORES=1):
+def perf_ddspls(Xs,Y,lambd_min=0,lambd_max=None,n_lambd=1,lambds=None,R=1,
+	kfolds="loo",mode="reg",fold_fixed=None,maxIter_imput=5,errMin_imput=1e-9,
+	NCORES=1):
 
 	def expandgrid(*itrs):
 		product = list(itertools_product(*itrs))

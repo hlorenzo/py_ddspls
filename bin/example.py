@@ -60,5 +60,6 @@ R=1
 mod_0_classif=py_ddspls.model.ddspls(Xs,Y_bin,lambd=lambd,R=R,mode="clas",verbose=True)
 Y_est = mod_0_classif.predict(Xtest)
 print(sklm.classification_report(Y_est, Y_classif[id_test]=='Class 1'))
-
 perf_model_class = py_ddspls.model.perf_ddspls(Xs,Y_classif,R=1,kfolds=3,n_lambd=3,NCORES=3,mode="classif")
+
+
