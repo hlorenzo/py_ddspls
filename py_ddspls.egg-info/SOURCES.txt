@@ -1,5 +1,5 @@
 MANIFEST.in
-README.md
+README.rst
 setup.py
 bin/example.py
 py_ddspls/__init__.py

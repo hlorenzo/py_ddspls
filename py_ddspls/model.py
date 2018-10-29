@@ -281,8 +281,8 @@ class ddspls:
 						iterat = iterat+1
 						for k in range(K):
 							if len(id_na[k])>0:
-								no_k = range(K)
-								no_k.remove(k)
+								no_k = np.arrange(K)
+								no_k.delete(no_k ,k)
 								i_k = id_na[k]
 								Xs_i = mod_0["s"]
 								Xs_i = np.delete(Xs_i, i_k, axis=0)
@@ -455,9 +455,9 @@ class ddspls:
 			else:
 				newY = []
 			for i_new in range(n_new):
-				t_i_new = {}
+				t_i_new = {}				
 				for k in range(K):
-					t_i_new[k] = newX[k][i_new,:]
+					t_i_new[k] = newX[k][(i_new):(i_new+1),:]
 				if self.mode=="reg":
 					newY[i_new,:] = self.predict(t_i_new)
 				else:
@@ -487,10 +487,8 @@ def perf_ddspls(Xs,Y,lambd_min=0,lambd_max=None,n_lambd=1,lambds=None,R=1,kfolds
 		kfolds_w = n
 		fold = range(n)
 	elif kfolds=="fixed":
-		kfolds_w = kfolds
 		fold = fold_fixed
 	else:
-		kfolds_w = kfolds
 		fold = []
 		rapport = int(np.ceil(float(n)/float(kfolds)))
 		val_to_sample = range(kfolds)
@@ -514,11 +512,11 @@ def perf_ddspls(Xs,Y,lambd_min=0,lambd_max=None,n_lambd=1,lambds=None,R=1,kfolds
 	else:
 		lambds_w = lambds
 	try:
-		iterator = iter(R)
+		iter(R)
 	except TypeError:
 		R = [R]
 	try:
-		iterator = iter(lambds_w)
+		iter(lambds_w)
 	except TypeError:
 		lambds_w = [lambds_w]
 	paras = expandgrid(R,lambds_w,range(max(fold)+1))
@@ -556,13 +554,11 @@ def perf_ddspls(Xs,Y,lambd_min=0,lambd_max=None,n_lambd=1,lambds=None,R=1,kfolds
 		lambd_yo = paras_out[1][i]
 		DF_OUT[i,range(2)] = R_yo,lambd_yo
 		errs = []
-		n_i_fold =[]
 		for koko in range(len(paral_list)):
 			pos_decoupe = paral_list[koko]["pos_decoupe"]
 			pos_pos_decoupe = np.where(np.array(decoupe)==pos_decoupe)[0]
 			R_koko = [paras[0][i_loc] for i_loc in pos_pos_decoupe]
 			lambd_koko = [paras[1][i_loc] for i_loc in pos_pos_decoupe]
-			i_fold_koko = [paras[2][i_loc] for i_loc in pos_pos_decoupe]
 			for ll in range(len(R_koko)):
 				if (R_koko[ll]==R_yo)&(lambd_koko[ll]==lambd_yo):
 					if mode =="reg":
