@@ -308,7 +308,7 @@ class ddspls:
 							for r in range(R):
 								n_new = np.sqrt(sum(np.square(mod["t_frak"][:,r])))
 								n_0 = np.sqrt(sum(np.square(mod_0["t_frak"][:,r])))
-								err <- err + 1 - abs(np.dot(mod["t_frak"][:,r].T,mod_0["t_frak"][:,r]))/(n_new*n_0)
+								err = err + 1 - abs(np.dot(mod["t_frak"][:,r].T,mod_0["t_frak"][:,r]))/(n_new*n_0)
 						else:
 							err = 0
 						if iterat >= maxIter_imput:
