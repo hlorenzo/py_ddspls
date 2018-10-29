@@ -1,0 +1,12 @@
+MANIFEST.in
+README.md
+setup.py
+bin/example.py
+py_ddspls/__init__.py
+py_ddspls/model.py
+py_ddspls.egg-info/PKG-INFO
+py_ddspls.egg-info/SOURCES.txt
+py_ddspls.egg-info/dependency_links.txt
+py_ddspls.egg-info/not-zip-safe
+py_ddspls.egg-info/requires.txt
+py_ddspls.egg-info/top_level.txt
