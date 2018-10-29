@@ -308,8 +308,7 @@ class ddspls:
 							for r in range(R):
 								n_new = np.sqrt(sum(np.square(mod["t_frak"][:,r])))
 								n_0 = np.sqrt(sum(np.square(mod_0["t_frak"][:,r])))
-								err <- err + 1 - abs(np.dot(mod["t_frak"][:,r].T,
-									mod_0["t_frak"][:,r]))/(n_new*n_0)
+								err <- err + 1 - abs(np.dot(mod["t_frak"][:,r].T,mod_0["t_frak"][:,r]))/(n_new*n_0)
 						else:
 							err = 0
 						if iterat >= maxIter_imput:
@@ -540,7 +539,7 @@ def perf_ddspls(Xs,Y,lambd_min=0,lambd_max=None,n_lambd=1,lambds=None,R=1,kfolds
 			"fold":fold}
 		paral_list.append(dicoco)
 	NCORES_w = int(min(NCORES,len(paras[0])))
-	p = Pool(NCORES_w)
+	p = Pool(processes=NCORES_w)
 	ERRORS = p.map(getResult, paral_list)
 	paras_out = expandgrid(R,lambds_w)
 	if mode=="reg":
@@ -587,4 +586,5 @@ def perf_ddspls(Xs,Y,lambd_min=0,lambd_max=None,n_lambd=1,lambds=None,R=1,kfolds
 	if mode!="reg":
 		for iii in range(len(ERRORS_OUT)):
 			DF_OUT[iii,2:DF_OUT.shape[1]] = ERRORS_OUT[iii]
+	p.terminate()
 	return DF_OUT;
