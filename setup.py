@@ -1,13 +1,9 @@
 from setuptools import setup
-
-def readme():
-    with open('README.rst') as f:
-        return f.read()
     
 setup(name='py_ddspls',
-      version='1.0.3',
+      version='1.0.98',
       description='The multi data driven sparse pls package',
-      long_description=readme(),
+      long_description=open('README.txt').read(),
       url='http://github.com/hlorenzo/py_ddspls',
       author='Hadrien Lorenzo',
       author_email='hadrien.lorenzo.2015@gmail.com',

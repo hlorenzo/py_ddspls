@@ -38,7 +38,7 @@ pos_1 = np.where(Y_bin==1)[0]
 Y_classif = np.repeat("Class 2",n)
 Y_classif[pos_1] = "Class 1"
 
-# dd-sPLS regularization parmater is fixed to 0.6
+# dd-sPLS regularization parameter is fixed to 0.6
 lambd=0.6
 
 # A train/test dataset is defined

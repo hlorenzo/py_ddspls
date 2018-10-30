@@ -37,8 +37,8 @@ def getResult(dic):
 		R = paras[0][paras_here_pos[i]]
 		lambd = paras[1][paras_here_pos[i]]
 		i_fold = paras[2][paras_here_pos[i]]
-		pos_train = np.where(np.array(fold)==i_fold)[0]
-		pos_test = np.where(np.array(fold)!=i_fold)[0]
+		pos_test = np.where(np.array(fold)==i_fold)[0]
+		pos_train = np.where(np.array(fold)!=i_fold)[0]
 		X_train = {}
 		X_test = {}
 		for k in range(K):
@@ -245,7 +245,11 @@ class ddspls:
 		self.errMin_imput = errMin_imput
 		self.maxIter_imput = maxIter_imput
 		self.verbose = verbose
-		self.getModel(model)
+		n = Xs[0].shape[0] 
+		if n!=1:
+			self.getModel(model)
+		else:
+			self.model = {}
 
 	def getModel(self,model):
 		if model==None:
