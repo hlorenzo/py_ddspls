@@ -77,7 +77,7 @@ Start model building and tcheck results with sklearn tools::
 	Y_est_reg = mod_0.predict(Xtest)		
 	print(sklm.mean_squared_error(Y[id_test,:],Y_est_reg))
 
-Cross validation can be performed with built tools, the parameter **NCORES** permits to use parallellization::
+Leave-one-out cross validation can be performed with built tools, the parameter **NCORES** permits to fix the number of cores to be used in the process ::
 
 	perf_model_reg = py_ddspls.model.perf_ddspls(Xs,Y,R=R,kfolds="loo",n_lambd=10,NCORES=4,mode="reg")
 	print(perf_model_reg)
@@ -91,8 +91,11 @@ Cross validation can be performed with built tools, the parameter **NCORES** per
 	plt.show()
 
 Which returns this kind of graphics .. image::
+
 	https://raw.githubusercontent.com/hlorenzo/py_ddspls/master/images/reg.png
 	:width: 600
+
+One that figure one can see that $\lambda\approx 0.79$ permits to estimate both of the $Y$ responses.
 
 Classification analysis
 -----------------------
