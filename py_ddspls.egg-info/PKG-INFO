@@ -1,6 +1,6 @@
 Metadata-Version: 1.0
 Name: py-ddspls
-Version: 1.0.98
+Version: 1.0.992
 Summary: The multi data driven sparse pls package
 Home-page: http://github.com/hlorenzo/py_ddspls
 Author: Hadrien Lorenzo
@@ -98,7 +98,8 @@ Description: =====================================
         	plt.ylabel('$RMSE$')
         	plt.show()
         
-        .. image:: images/res.png
+        .. image::
+        	https://raw.githubusercontent.com/hlorenzo/py_ddspls/master/images/reg.png
         	:width: 600
         
         Classification analysis
