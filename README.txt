@@ -90,7 +90,7 @@ Cross validation can be performed with built tools, the parameter **NCORES** per
 	plt.ylabel('$RMSE$')
 	plt.show()
 
-.. image:: images/res.png
+.. image:: images/reg.png
 	:width: 600
 
 Classification analysis
