@@ -1,7 +1,7 @@
 from setuptools import setup
     
 setup(name='py_ddspls',
-      version='1.0.994',
+      version='1.0.995',
       description='The multi data driven sparse pls package',
       long_description=open('README.txt').read(),
       url='http://github.com/hlorenzo/py_ddspls',
