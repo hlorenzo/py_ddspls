@@ -109,7 +109,7 @@ Leave-one-out cross validation can be performed with built tools, the parameter 
 	plt.ylabel('RMSE')
 	plt.show()
 
-Which returns this kind of graphics.. image::
+Which returns this kind of graphics .. image::
 
 	https://raw.githubusercontent.com/hlorenzo/py_ddspls/master/images/reg.png
 	:width: 600
@@ -142,7 +142,7 @@ Cross validation can be performed with built tools, the parameter **NCORES** per
 	plt.ylabel('Classification Error')
 	plt.show()
 
-Which returns this kind of graphics.. image::
+Which returns this kind of graphics .. image::
 
 	https://raw.githubusercontent.com/hlorenzo/py_ddspls/master/images/cla.png
 	:width: 600
