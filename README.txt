@@ -109,14 +109,12 @@ Leave-one-out cross validation can be performed with built tools, the parameter 
 	plt.ylabel('RMSE')
 	plt.show()
 
-Which returns this kind of graphics
-
-.. image::
+Which returns this kind of graphics.. image::
 
 	https://raw.githubusercontent.com/hlorenzo/py_ddspls/master/images/reg.png
 	:width: 600
 
-For $\lambda\approx 0.5$ one can find a minimum of the RMSE of the RMSE of each variable. This constant can be mitigated assuming that only **Y** variables $2$ and $5$ are well described by the **X** dataset. In that context, a discussion with experts, such as clinicians might help to decide.
+For $\lambda\approx 0.9$ one can find a minimum of the RMSE of the RMSE of each variable. This oservation can be mitigated assuming that only **Y** variables $1$ and $4$ are well described by the **X** dataset. In that context, a discussion with experts, might help to decide the value to give to $\lambda$.
 
 Classification analysis
 -----------------------
@@ -144,9 +142,7 @@ Cross validation can be performed with built tools, the parameter **NCORES** per
 	plt.ylabel('Classification Error')
 	plt.show()
 
-Which returns this kind of graphics
-
-.. image::
+Which returns this kind of graphics.. image::
 
 	https://raw.githubusercontent.com/hlorenzo/py_ddspls/master/images/cla.png
 	:width: 600
