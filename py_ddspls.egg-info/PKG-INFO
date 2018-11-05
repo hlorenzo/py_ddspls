@@ -1,6 +1,6 @@
 Metadata-Version: 1.0
 Name: py-ddspls
-Version: 1.0.994
+Version: 1.0.9991
 Summary: The multi data driven sparse pls package
 Home-page: http://github.com/hlorenzo/py_ddspls
 Author: Hadrien Lorenzo
@@ -117,12 +117,13 @@ Description: =====================================
         	plt.ylabel('RMSE')
         	plt.show()
         
-        Which returns this kind of graphics .. image::
+        Which returns this kind of graphics
         
+        .. image::
         	https://raw.githubusercontent.com/hlorenzo/py_ddspls/master/images/reg.png
         	:width: 600
         
-        For $\lambda\approx 0.9$ one can find a minimum of the RMSE of the RMSE of each variable. This oservation can be mitigated assuming that only **Y** variables $1$ and $4$ are well described by the **X** dataset. In that context, a discussion with experts, might help to decide the value to give to $\lambda$.
+        For 0.9 one can find a minimum of the RMSE of the RMSE of each variable. This oservation can be mitigated assuming that only **Y** variables 1 and 4 are well described by the **X** dataset. In that context, a discussion with experts, might help to decide the value to give to the parameter.
         
         Classification analysis
         -----------------------
@@ -150,12 +151,13 @@ Description: =====================================
         	plt.ylabel('Classification Error')
         	plt.show()
         
-        Which returns this kind of graphics .. image::
+        Which returns this kind of graphics
         
+        .. image::
         	https://raw.githubusercontent.com/hlorenzo/py_ddspls/master/images/cla.png
         	:width: 600
         
-        One that figure one can see that $\lambda\approx 0.45$ can be chosen.
+        One that figure one can see that a parameter approximately equal to 0.45 can be chosen.
         
         **Enjoy :)**
 Platform: UNKNOWN

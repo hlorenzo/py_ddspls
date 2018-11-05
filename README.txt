@@ -109,10 +109,13 @@ Leave-one-out cross validation can be performed with built tools, the parameter 
 	plt.ylabel('RMSE')
 	plt.show()
 
-Which returns this kind of graphics .. image:: https://raw.githubusercontent.com/hlorenzo/py_ddspls/master/images/reg.png
+Which returns this kind of graphics
+
+.. image::
+	https://raw.githubusercontent.com/hlorenzo/py_ddspls/master/images/reg.png
 	:width: 600
 
-For $\lambda\approx 0.9$ one can find a minimum of the RMSE of the RMSE of each variable. This oservation can be mitigated assuming that only **Y** variables $1$ and $4$ are well described by the **X** dataset. In that context, a discussion with experts, might help to decide the value to give to $\lambda$.
+For 0.9 one can find a minimum of the RMSE of the RMSE of each variable. This oservation can be mitigated assuming that only **Y** variables 1 and 4 are well described by the **X** dataset. In that context, a discussion with experts, might help to decide the value to give to the parameter.
 
 Classification analysis
 -----------------------
@@ -140,9 +143,12 @@ Cross validation can be performed with built tools, the parameter **NCORES** per
 	plt.ylabel('Classification Error')
 	plt.show()
 
-Which returns this kind of graphics .. image:: https://raw.githubusercontent.com/hlorenzo/py_ddspls/master/images/cla.png
+Which returns this kind of graphics
+
+.. image::
+	https://raw.githubusercontent.com/hlorenzo/py_ddspls/master/images/cla.png
 	:width: 600
 
-One that figure one can see that $\lambda\approx 0.45$ can be chosen.
+One that figure one can see that a parameter approximately equal to 0.45 can be chosen.
 
 **Enjoy :)**
