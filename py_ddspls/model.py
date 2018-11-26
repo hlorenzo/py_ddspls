@@ -76,7 +76,7 @@ def reshape_dict(Xs_top):
 			Xs_w_resh = {}
 			Xs_w_resh[0] = Xs_top
 		else:
-			Xs_w_resh = Xs_top	
+			Xs_w_resh = Xs_top
 	else:
 		Xs_w_resh = Xs_top
 	K = len(Xs_w_resh)
@@ -104,7 +104,7 @@ def reshape_dict(Xs_top):
 				Xs_here[:,0] = Xs_w_resh[k]
 				Xs_w_resh[k] = Xs_here
 	return Xs_w_resh;
-				
+
 def MddsPLS_core(Xs,Y,lambd=0,R=1,mode="reg",verbose=False):
 	Xs_w = reshape_dict(Xs)
 	K = len(Xs_w)
@@ -234,9 +234,9 @@ class model_class:
 		self.q = q
 		self.Ms = Ms
 		self.lambd = lambd
-	
+
 class ddspls:
-	def __init__(self,Xs,Y,lambd=0,R=1,mode="reg",errMin_imput=1e-9,maxIter_imput=50,verbose=False,model=None):				
+	def __init__(self,Xs,Y,lambd=0,R=1,mode="reg",errMin_imput=1e-9,maxIter_imput=50,verbose=False,model=None):
 		self.Xs = Xs
 		self.Y = Y
 		self.lambd = lambd
@@ -245,7 +245,7 @@ class ddspls:
 		self.errMin_imput = errMin_imput
 		self.maxIter_imput = maxIter_imput
 		self.verbose = verbose
-		n = Xs[0].shape[0] 
+		n = Xs[0].shape[0]
 		if n!=1:
 			self.getModel(model)
 		else:
@@ -357,7 +357,7 @@ class ddspls:
 				u_X_here[id_ok_r]=mod.u[pos_ok[id_ok_r]]
 				mu_x_here[id_ok_r]=mod.mu_x_s[pos_ok[id_ok_r]]
 				sd_x_0[id_ok_r] = mod.sd_x_s[pos_ok[id_ok_r]]
-		 
+
 			## Create to be predicted matrix train
 			pos_no_ok = range(K)
 			pos_no_ok = [x for x in pos_no_ok if x not in pos_ok]
@@ -394,7 +394,7 @@ class ddspls:
 					for id_xx in range(n_test):
 						variab_sd_no_0 = np.where(sd_x_0[k_j]!=0)
 						for v_sd_no_0 in variab_sd_no_0:
-							xx[id_xx,v_sd_no_0] = (xx[id_xx,v_sd_no_0] - 
+							xx[id_xx,v_sd_no_0] = (xx[id_xx,v_sd_no_0] -
 	        mu_x_here[k_j][v_sd_no_0])/sd_x_0[k_j][v_sd_no_0]
 					t_X_test[:,r_j*K_h+k_j] = np.dot(xx,u_X_here[k_j][:,r_j])
 			## Estimate missing values
@@ -436,7 +436,7 @@ class ddspls:
 			for k in range(K):
 				variab_sd_no_0 = np.where(mod.sd_x_s[k]!=0)[0]
 				for v_sd_no_0 in variab_sd_no_0:
-					newX_w[k][0,v_sd_no_0] = (newX_w[k][0,v_sd_no_0] - 
+					newX_w[k][0,v_sd_no_0] = (newX_w[k][0,v_sd_no_0] -
 						mod.mu_x_s[k][v_sd_no_0])/mod.sd_x_s[k][v_sd_no_0]
 			if self.mode=="reg":
 				newY = np.zeros((1,q))
@@ -455,12 +455,12 @@ class ddspls:
 				else:
 					newY = rd.sample(set(self.Y),1)
 		else:
-			if self.mode=="reg":		
+			if self.mode=="reg":
 				newY = np.zeros((n_new,q))
 			else:
 				newY = []
 			for i_new in range(n_new):
-				t_i_new = {}				
+				t_i_new = {}
 				for k in range(K):
 					t_i_new[k] = newX[k][(i_new):(i_new+1),:]
 				if self.mode=="reg":
@@ -468,7 +468,7 @@ class ddspls:
 				else:
 					newY.append(self.predict(t_i_new)[0])
 		return newY;
-	
+
 def perf_ddspls(Xs,Y,lambd_min=0,lambd_max=None,n_lambd=1,lambds=None,R=1,
 	kfolds="loo",mode="reg",fold_fixed=None,maxIter_imput=5,errMin_imput=1e-9,
 	NCORES=1):
