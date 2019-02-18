@@ -1,6 +1,13 @@
 # -*- coding: utf-8 -*-
 #!/usr/bin/python
 
+"""
+	The model module
+	================
+
+	
+"""
+
 import numpy as np
 from pandas import get_dummies
 import warnings
@@ -236,7 +243,49 @@ class model_class:
 		self.lambd = lambd
 
 class ddspls:
-	def __init__(self,Xs,Y,lambd=0,R=1,mode="reg",errMin_imput=1e-9,maxIter_imput=50,verbose=False,model=None):
+	"""Main class of the package. Filled with propoerties of any built
+		 ddsPLS model.
+
+		Attributes
+		----------
+		Xs : dict
+			a dictionnary of the different co-factor numpy matrices of the problem
+		Y :  numpy matrix
+			either a multi-variate numpy matrix defining the regression case
+			 response matrix. Or a single-column numpy matrix in case of 
+			classification
+		lambd : float
+			the regularization coefficient, between 0 and 1 (default is 0)
+		R : int
+			the number of components to be built, between 1 and the minimum of the
+			 number of columns of Y and the total number of co-variables among the
+			 all blocks (default is 1)
+		mode : str
+			equals to "reg" in the regression context (and default). Any other 
+			choice would produce "classification" analysis.
+		errMin_imput : float
+			minimal error in the Tribe Stage of the Koh-Lanta algorithm (default 
+			is 1e-9)
+		maxIter_imput : int
+			Maximal number of iterations in the Tribe Stage of the Koh-Lanta
+			 algorithm. If equals to 0, mean imputation is  considered (default is 
+			5)
+		verbose : bool
+			if TRUE, print specificities of the object (default is false)
+		model : ddspls
+			the built model according to previous parameters
+
+		Methods
+		-------
+		getModel(model)
+			Permits to build the Python ddsPLS model according to the chosen 
+			parameters.
+		fill_X_test(X_test_0)
+			Internal method which permits to estimate missing values in the 
+			co-variable part.
+	"""
+	def __init__(self,Xs,Y,lambd=0,R=1,mode="reg",errMin_imput=1e-9,
+		maxIter_imput=50,verbose=False,model=None):
 		self.Xs = Xs
 		self.Y = Y
 		self.lambd = lambd
@@ -252,6 +301,15 @@ class ddspls:
 			self.model = {}
 
 	def getModel(self,model):
+		"""Permits to build the Python ddsPLS model according to the chosen 
+			parameters. Internal method.
+
+			Parameters
+			----------
+			model : ddspls, optional
+				The model default value given to the method. Most o times this
+				 method is not used.
+		"""
 		if model==None:
 			Xs = self.Xs
 			Y = self.Y
@@ -333,6 +391,17 @@ class ddspls:
 			self.model = model
 
 	def fill_X_test(self,X_test_0):
+		"""
+
+			Internal method which permits to estimate missing values in the 
+			co-variable part. Internal method.
+
+			Parameters
+			----------
+			X_test_0 : dict
+				a dictionnary of the different co-factor numpy matrices of the 
+				problem
+		"""
 		X_test = reshape_dict(X_test_0)
 		lambd,R,mod = self.lambd,self.R,self.model
 		K = len(X_test)
@@ -413,6 +482,16 @@ class ddspls:
 		return X_test_w;
 
 	def predict(self,newX):
+		"""
+
+			Estimate Y values for new individuals according to previously a 
+			built model.
+
+			Parameters
+			----------
+			newX : dict
+				The dictionnary of matrices corresponding to the test data set.
+		"""
 		newX_w = reshape_dict(newX)
 		K = len(newX_w)
 		n_new = newX_w[0].shape[0]
@@ -472,6 +551,8 @@ class ddspls:
 def perf_ddspls(Xs,Y,lambd_min=0,lambd_max=None,n_lambd=1,lambds=None,R=1,
 	kfolds="loo",mode="reg",fold_fixed=None,maxIter_imput=5,errMin_imput=1e-9,
 	NCORES=1):
+	"""Permits to start cross-validation processes. A parallelized procedure
+	 is accessible thanks to parameter NCORES, when >1."""
 
 	def expandgrid(*itrs):
 		product = list(itertools_product(*itrs))
@@ -489,7 +570,7 @@ def perf_ddspls(Xs,Y,lambd_min=0,lambd_max=None,n_lambd=1,lambds=None,R=1,
 	else:
 		q = 1
 		Y_w = Y
-	## cv design
+	## Cross-Validation design
 	if kfolds=="loo":
 		kfolds_w = n
 		fold = range(n)
@@ -508,7 +589,8 @@ def perf_ddspls(Xs,Y,lambd_min=0,lambd_max=None,n_lambd=1,lambds=None,R=1,
 	## Get highest Lambda
 	if lambds==None:
 		if lambd_max == None:
-			MMss0 = ddspls(Xs,Y,lambd = 0,R = 1,mode = mode,maxIter_imput = 0).model.Ms
+			MMss0 = ddspls(Xs,Y,lambd = 0,R = 1,
+				mode = mode,maxIter_imput = 0).model.Ms
 			K = len(MMss0)
 			lambd_max_w = 0
 			for k in range(K):
@@ -596,3 +678,4 @@ def perf_ddspls(Xs,Y,lambd_min=0,lambd_max=None,n_lambd=1,lambds=None,R=1,
 			DF_OUT[iii,2:DF_OUT.shape[1]] = ERRORS_OUT[iii]
 	p.terminate()
 	return DF_OUT;
+
