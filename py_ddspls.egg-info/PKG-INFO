@@ -81,9 +81,6 @@ Description: =====================================
         	Xtrain = {}
         	Ytrain = Y[id_train,:]
         	Xtest = {}
-        	for t in range(T):
-        		Xtrain[t] = Xs[t][id_train,:]
-        		Xtest[t] = Xs[t][id_test,:]
         
         Regression analysis
         -------------------
@@ -92,13 +89,14 @@ Description: =====================================
         
         	R=2
         
-        Start model building and tcheck results with sklearn tools::
+        Start model building and check results with sklearn tools::
         
         	mod_0=py_ddspls.model.ddspls(Xtrain,Ytrain,lambd=lambd,R=R,mode="reg",verbose=True)
         	Y_est_reg = mod_0.predict(Xtest)		
         	print(sklm.mean_squared_error(Y[id_test,:],Y_est_reg))
         
-        Leave-one-out cross validation can be performed with built tools, the parameter **NCORES** permits to fix the number of cores to be used in the process ::
+        Leave-one-out cross validation can be performed with built tools, the parameter
+         **NCORES** permits to fix the number of cores to be used in the process ::
         
         	perf_model_reg = py_ddspls.model.perf_ddspls(Xs,Y,R=R,kfolds="loo",n_lambd=10,NCORES=4,mode="reg")
         	print(perf_model_reg)
@@ -123,7 +121,10 @@ Description: =====================================
         	https://raw.githubusercontent.com/hlorenzo/py_ddspls/master/images/reg.png
         	:width: 600
         
-        For 0.9 one can find a minimum of the RMSE of the RMSE of each variable. This oservation can be mitigated assuming that only **Y** variables 1 and 4 are well described by the **X** dataset. In that context, a discussion with experts, might help to decide the value to give to the parameter.
+        For 0.9 one can find a minimum of the RMSE of the RMSE of each variable. This 
+        oservation can be mitigated assuming that only **Y** variables 1 and 4 are 
+        well described by the **X** dataset. In that context, a discussion with 
+        experts, might help to decide the value to give to the parameter.
         
         Classification analysis
         -----------------------
@@ -138,7 +139,8 @@ Description: =====================================
         	Y_est = mod_0_classif.predict(Xtest)
         	print(sklm.classification_report(Y_est, Y_classif[id_test]=='Class 1'))
         
-        Cross validation can be performed with built tools, the parameter **NCORES** permits to use parallellization::
+        Cross validation can be performed with built tools, the parameter **NCORES**
+         permits to use parallellization::
         
         	perf_model_class = py_ddspls.model.perf_ddspls(Xs,Y_classif,R=R,kfolds="loo",n_lambd=40,NCORES=7,mode="classif")
         	print(perf_model_class)
@@ -157,7 +159,8 @@ Description: =====================================
         	https://raw.githubusercontent.com/hlorenzo/py_ddspls/master/images/cla.png
         	:width: 600
         
-        One that figure one can see that a parameter approximately equal to 0.45 can be chosen.
+        One that figure one can see that a parameter approximately equal to 0.45 can be
+         chosen.
         
         **Enjoy :)**
 Platform: UNKNOWN
