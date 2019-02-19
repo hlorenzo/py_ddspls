@@ -243,7 +243,7 @@ class model_class:
 
 class ddspls:
 	"""Main class of the package. Filled with propoerties of any built
-	 ddsPLS model.
+	ddsPLS model.
 
 	Attributes
 	----------
@@ -251,14 +251,14 @@ class ddspls:
 		a dictionnary of the different co-factor numpy matrices of the problem
 	Y :  numpy matrix
 		either a multi-variate numpy matrix defining the regression case
-		 response matrix. Or a single-column numpy matrix in case of 
+		response matrix. Or a single-column numpy matrix in case of 
 		classification
 	lambd : float
 		the regularization coefficient, between 0 and 1 (default is 0)
 	R : int
 		the number of components to be built, between 1 and the minimum of the
-		 number of columns of Y and the total number of co-variables among the
-		 all blocks (default is 1)
+		number of columns of Y and the total number of co-variables among the
+		all blocks (default is 1)
 	mode : str
 		equals to "reg" in the regression context (and default). Any other
 		choice would produce "classification" analysis.
@@ -267,7 +267,7 @@ class ddspls:
 		is 1e-9)
 	maxIter_imput : int
 		Maximal number of iterations in the Tribe Stage of the Koh-Lanta
-		 algorithm. If equals to 0, mean imputation is  considered (default is
+		algorithm. If equals to 0, mean imputation is  considered (default is
 		5)
 	verbose : bool
 		if TRUE, print specificities of the object (default is false)
@@ -547,7 +547,7 @@ def perf_ddspls(Xs,Y,lambd_min=0,lambd_max=None,n_lambd=1,lambds=None,R=1,
 	kfolds="loo",mode="reg",fold_fixed=None,errMin_imput=1e-9,maxIter_imput=5,
 	NCORES=1):
 	"""Permits to start cross-validation processes. A parallelized procedure
-	 is accessible thanks to parameter NCORES, when >1.
+	is accessible thanks to parameter NCORES, when >1.
 
 	Parameters
 	----------
@@ -555,13 +555,13 @@ def perf_ddspls(Xs,Y,lambd_min=0,lambd_max=None,n_lambd=1,lambds=None,R=1,
 		a dictionnary of the different co-factor numpy matrices of the problem
 	Y :  numpy matrix
 		either a multi-variate numpy matrix defining the regression case
-		 response matrix. Or a single-column numpy matrix in case of
+		response matrix. Or a single-column numpy matrix in case of
 		classification
 	lambd_min : float
 		minimal value of lambd to be tested (default is *0*)
 	lambd_max : float
 		maximal value of lambd to be tested (default is *None*). If *None*, the
-		 highest value which permits to not get an empty model is chosen
+		highest value which permits to not get an empty model is chosen
 	n_lambda : int
 		number of lambd to be testes, regularly sampled between lambd_min and
 		lambd_max (default is 1)
@@ -569,18 +569,18 @@ def perf_ddspls(Xs,Y,lambd_min=0,lambd_max=None,n_lambd=1,lambds=None,R=1,
 		if the user want to test specific values of lambd, else put to *None*
 	R : int
 		the number of components to be built, between 1 and the minimum of the
-		 number of columns of Y and the total number of co-variables among the
-		 all blocks (default is 1)
+		number of columns of Y and the total number of co-variables among the
+		all blocks (default is 1)
 	kfolds : int or str
 		the number of folds in the cross-validation process. In case equal to
-		 *loo*, then leave-one-out cross-validation is perfomed (default value)
+		*loo*, then leave-one-out cross-validation is perfomed (default value)
 	mode : str
 		equals to "reg" in the regression context (and default). Any other
 		choice would produce "classification" analysis.
 	fold_fixed : sdarray
 		if the user wants samples to be removed in the same time in the cross-
 		validation process. This is a sdarray of length the total number of
-		 individuals where each is an integer defining the index of the fold.
+		individuals where each is an integer defining the index of the fold.
 		Default is *None* which corresponds to classical f-folds cross
 		validation
 	errMin_imput : float
@@ -588,7 +588,7 @@ def perf_ddspls(Xs,Y,lambd_min=0,lambd_max=None,n_lambd=1,lambds=None,R=1,
 		is 1e-9)
 	maxIter_imput : int
 		Maximal number of iterations in the Tribe Stage of the Koh-Lanta
-		 algorithm. If equals to 0, mean imputation is  considered (default is
+		algorithm. If equals to 0, mean imputation is  considered (default is
 		5)
 	NCORES : int
 		The number of cores to be used in the parallelized process. If equal to
