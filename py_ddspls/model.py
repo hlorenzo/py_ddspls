@@ -176,13 +176,21 @@ def MddsPLS_core(Xs,Y,lambd=0,R=1,mode="reg",verbose=False):
 		else:
 			svd_k_res = np.linalg.svd(Ms[k],full_matrices=False)
 			if svd_k_res[1].size<R:
-				import pdb
-				pdb.set_trace()
 				eigs = np.zeros((1,R))
 				if svd_k_res[1].size==1:
 					eigs[0,0] = svd_k_res[1]
 				else:
 					eigs[range(svd_k_res[1].size-1)] = svd_k_res[1]
+				if (svd_k_res[2].T).shape[1]<R:
+					additionnal = np.zeros(((svd_k_res[2].T).shape[0],R-(svd_k_res[2].T).shape[1]))
+					v_k = np.concatenate((svd_k_res[2].T,additionnal),axis=1)
+				else:
+					v_k = svd_k_res[2].T
+			for r_i in range(R):
+				if eigs[r_i]==0:
+					v_k[:,r_i] = 0
+			import pdb
+			pdb.set_trace()
 			v_k_res = svd_k_res[2].T
 			svd_k = {"v":v_k_res[:,range(R_w)]}
 		u_t_r[k]=svd_k["v"]
@@ -215,7 +223,6 @@ def MddsPLS_core(Xs,Y,lambd=0,R=1,mode="reg",verbose=False):
 	# Get regression matrix
 	alphas = []
 	for r in range(R_w):
-		print("aaa")
 		n_t_2 = np.dot(t_frak[:,r].T,t_frak[:,r])
 		if n_t_2 != 0:
 			val = np.dot(s_frak[:,r].T,t_frak[:,r])/n_t_2
@@ -351,8 +358,6 @@ class ddspls:
 		self.errMin_imput = errMin_imput
 		self.maxIter_imput = maxIter_imput
 		self.verbose = verbose
-		#import pdb
-		#pdb.set_trace()
 		n = Xs[0].shape[0]
 		if n!=1:
 			self.getModel(model)
