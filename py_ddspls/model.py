@@ -131,7 +131,20 @@ def MddsPLS_core(Xs,Y,lambd=0,R=1,mode="reg",verbose=False):
 		pos_no_na = np.where(np.isnan(Xs_w[i][:,0])==False)[0]
 		Xs_w[i][pos_no_na,:] = preprocessing.scale(Xs_w[i][pos_no_na,:])
 		if len(pos_nas[i])!=0:
-			Xs_w[i][pos_nas[i],:] = 0
+			# Imputation to mean
+			#Xs_w[i][pos_nas[i],:] = 0
+			# Imputation to best estimation according to Y
+			y_i_train = np.delete(Xs_w[i],pos_nas[i],0)
+			if mode=="reg":
+				x_train = {0:np.delete(Y,pos_nas[i],0)}
+				x_test = {0:np.delete(Y,pos_no_na,0)}
+			else:
+				Y_w = preprocessing.scale(get_dummies(Y)*1.0)
+				x_train = {0:np.delete(Y_w,pos_nas[i],0)}
+				x_test = {0:np.delete(Y_w,pos_no_na,0)}
+			model_init = ddspls(x_train,y_i_train,R=R,lambd=lambd)
+			y_test = model_init.predict(x_test)
+			Xs_w[i][pos_nas[i],:] = y_test
 	# Standardize Y
 	if mode != "reg":
 		Y_w = get_dummies(Y)
@@ -162,6 +175,14 @@ def MddsPLS_core(Xs,Y,lambd=0,R=1,mode="reg",verbose=False):
 			svd_k = {"v":np.zeros((Ms[k].shape[1], R_w))}
 		else:
 			svd_k_res = np.linalg.svd(Ms[k],full_matrices=False)
+			if svd_k_res[1].size<R:
+				import pdb
+				pdb.set_trace()
+				eigs = np.zeros((1,R))
+				if svd_k_res[1].size==1:
+					eigs[0,0] = svd_k_res[1]
+				else:
+					eigs[range(svd_k_res[1].size-1)] = svd_k_res[1]
 			v_k_res = svd_k_res[2].T
 			svd_k = {"v":v_k_res[:,range(R_w)]}
 		u_t_r[k]=svd_k["v"]
@@ -194,6 +215,7 @@ def MddsPLS_core(Xs,Y,lambd=0,R=1,mode="reg",verbose=False):
 	# Get regression matrix
 	alphas = []
 	for r in range(R_w):
+		print("aaa")
 		n_t_2 = np.dot(t_frak[:,r].T,t_frak[:,r])
 		if n_t_2 != 0:
 			val = np.dot(s_frak[:,r].T,t_frak[:,r])/n_t_2
@@ -222,6 +244,42 @@ def MddsPLS_core(Xs,Y,lambd=0,R=1,mode="reg",verbose=False):
 	return out;
 
 class model_class:
+	"""Class permitting to access the ddspls model computation results.
+	*K* is the number of blocks in the *X* part.
+	*p_k* is, for each block *k*, the number of variables in block *k*.
+	*q* is the number of variables in matrix *Y*.
+	*R* is the number of dimensions requested by the user.
+
+	Attributes
+	----------
+	u : dict
+		a dictionnary of length *K*. Each element is a *p_k*X*R* matrix : the weights
+		per block per axis
+	v : numpy matrix
+		A *q*X*R* matrix : the weights for the *Y* part.
+	ts : dict
+		length *R*. Each element is a *n*X*K* matrix : the scores per axis per block
+	beta_comb : int
+		the number of components to be built, between 1 and the minimum of the
+		number of columns of Y and the total number of co-variables among the
+		all blocks (default is 1)
+	t : 
+	mode : str
+		equals to "reg" in the regression context (and default). Any other
+		choice would produce "classification" analysis.
+	errMin_imput : float
+		minimal error in the Tribe Stage of the Koh-Lanta algorithm (default
+		is 1e-9)
+	maxIter_imput : int
+		Maximal number of iterations in the Tribe Stage of the Koh-Lanta
+		algorithm. If equals to 0, mean imputation is  considered (default is
+		5)
+	verbose : bool
+		if TRUE, print specificities of the object (default is false)
+	model : ddspls
+		the built model according to previous parameters
+
+	"""
 	def __init__(self,u,v,ts,beta_comb,t,s,t_frak,s_frak,B,mu_x_s,sd_x_s,mu_y,sd_y,R,q,Ms,lambd):
 		self.u = u
 		self.v = v
@@ -271,7 +329,7 @@ class ddspls:
 		5)
 	verbose : bool
 		if TRUE, print specificities of the object (default is false)
-	model : ddspls
+	model : model_class
 		the built model according to previous parameters
 
 	Methods
@@ -293,6 +351,8 @@ class ddspls:
 		self.errMin_imput = errMin_imput
 		self.maxIter_imput = maxIter_imput
 		self.verbose = verbose
+		#import pdb
+		#pdb.set_trace()
 		n = Xs[0].shape[0]
 		if n!=1:
 			self.getModel(model)
@@ -354,14 +414,25 @@ class ddspls:
 									Y_i_k = Xs_w[k][:,Var_selected_k]
 									Y_i_k = np.delete(Y_i_k,i_k,axis=0)
 									model_here_0 = MddsPLS_core(Xs_i,Y_i_k,lambd=lambd)
-									model_here = model_class(u=model_here_0["u"],v=model_here_0["v"],ts=model_here_0["ts"],
-								  beta_comb=model_here_0["beta_comb"],t=model_here_0["t"],s=model_here_0["s"],
-								  t_frak=model_here_0["t_frak"],s_frak=model_here_0["s_frak"],B=model_here_0["B"],
-								  mu_x_s=model_here_0["mu_x_s"],sd_x_s=model_here_0["sd_x_s"],mu_y=model_here_0["mu_y"],
-								  sd_y=model_here_0["sd_y"],R=model_here_0["R"],q=model_here_0["q"],Ms=model_here_0["Ms"],
-								  lambd=model_here_0["lambd"])
+									model_here = model_class(u=model_here_0["u"],
+									v=model_here_0["v"],
+									ts=model_here_0["ts"],
+									beta_comb=model_here_0["beta_comb"],
+									t=model_here_0["t"],s=model_here_0["s"],
+									t_frak=model_here_0["t_frak"],
+									s_frak=model_here_0["s_frak"],
+									B=model_here_0["B"],
+									mu_x_s=model_here_0["mu_x_s"],
+									sd_x_s=model_here_0["sd_x_s"],
+									mu_y=model_here_0["mu_y"],
+									sd_y=model_here_0["sd_y"],
+									R=model_here_0["R"],
+									q=model_here_0["q"],
+									Ms=model_here_0["Ms"],
+									lambd=model_here_0["lambd"])
 									mod_i_k = ddspls(Xs=Xs_i,Y=Y_i_k,lambd=lambd,R=R,
-							  model=model_here,maxIter_imput=maxIter_imput,mode="reg")
+									model=model_here,maxIter_imput=maxIter_imput,mode="reg")
+									print("OOO")
 									Xs_w[k][i_k,Var_selected_k] = mod_i_k.predict(newX_i)
 						mod = MddsPLS_core(Xs_w,Y,lambd=lambd,R=R,mode=mode)
 						if sum(sum(abs(mod["t"])))!=0:
@@ -536,7 +607,7 @@ class ddspls:
 			for i_new in range(n_new):
 				t_i_new = {}
 				for k in range(K):
-					t_i_new[k] = newX[k][(i_new):(i_new+1),:]
+					t_i_new[k] = newX_w[k][(i_new):(i_new+1),:]
 				if self.mode=="reg":
 					newY[i_new,:] = self.predict(t_i_new)
 				else:
@@ -573,16 +644,18 @@ def perf_ddspls(Xs,Y,lambd_min=0,lambd_max=None,n_lambd=1,lambds=None,R=1,
 		all blocks (default is 1)
 	kfolds : int or str
 		the number of folds in the cross-validation process. In case equal to
-		*loo*, then leave-one-out cross-validation is perfomed (default value)
+		*loo*, then leave-one-out cross-validation is perfomed (default value).
+		If equal to *fixed* then *fold_fixed* argument is considered
 	mode : str
 		equals to "reg" in the regression context (and default). Any other
-		choice would produce "classification" analysis.
+		choice would produce "classification" analysis
 	fold_fixed : sdarray
 		if the user wants samples to be removed in the same time in the cross-
 		validation process. This is a sdarray of length the total number of
 		individuals where each is an integer defining the index of the fold.
-		Default is *None* which corresponds to classical f-folds cross
-		validation
+		Default is *None* which corresponds to classical f-folds cross-
+		validation. Only taken into account if *kfolds==fixed* (default is 
+		*None*)
 	errMin_imput : float
 		minimal error in the Tribe Stage of the Koh-Lanta algorithm (default
 		is 1e-9)
