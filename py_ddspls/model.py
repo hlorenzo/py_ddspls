@@ -7,17 +7,20 @@
 
 """
 
+def f(x):
+	return x*x
+
 import numpy as np
 from pandas import get_dummies
 import warnings
 with warnings.catch_warnings():
 	warnings.filterwarnings("ignore",category=DeprecationWarning)
-	import imp
-	from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
+import importlib
+from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn import preprocessing
-from multiprocessing import Pool
 import random as rd
 from itertools import product as itertools_product
+import copy
 
 def getResult(dic):
 	Xs = dic["Xs"]
@@ -63,7 +66,7 @@ def getResult(dic):
 			error_here = Y_est - Y_test
 			errors[i,:] = np.sqrt(np.sum(error_here*error_here,
 	  axis=0)/len(pos_test))
-			v_no_null = np.where(np.sum(abs(mod_0.model.v),axis=0)>1e-10)
+			v_no_null = np.where(np.sum(abs(mod_0.model.V_super),axis=0)>1e-10)
 			select_y[i,v_no_null] <- 1
 		else:
 			numer = float(len([ii for ii,v in enumerate(Y_test) if Y_est[ii] == v]))
@@ -80,11 +83,13 @@ def reshape_dict(Xs_top):
 	if test_matrix:
 		if(len(Xs_top.shape)!=0):
 			Xs_w_resh = {}
-			Xs_w_resh[0] = Xs_top
+			Xs_w_resh[0] = copy.copy(Xs_top)
 		else:
-			Xs_w_resh = Xs_top
+			Xs_w_resh = copy.copy(Xs_top)
 	else:
-		Xs_w_resh = Xs_top
+		Xs_w_resh = {}
+		for k in range(len(Xs_top)):
+			Xs_w_resh[k] = copy.copy(Xs_top[k])
 	K = len(Xs_w_resh)
 	how_much_dim = []
 	min_dim = []
@@ -113,6 +118,8 @@ def reshape_dict(Xs_top):
 
 def MddsPLS_core(Xs,Y,lambd=0,R=1,mode="reg",verbose=False):
 	Xs_w = reshape_dict(Xs)
+	for k in range(len(Xs_w)):
+				Xs_w[k] = copy.copy(Xs_w[k])
 	K = len(Xs_w)
 	n = Xs_w[0].shape[0]
 	# Standardize X
@@ -120,6 +127,7 @@ def MddsPLS_core(Xs,Y,lambd=0,R=1,mode="reg",verbose=False):
 	sd_x_s = {}
 	pos_nas = {}
 	p_s = np.repeat(0,K)
+	xs0 = copy.copy(Xs_w[0])
 	for i in range(K):
 		if len(Xs_w[i].shape)!=2:
 			Xs_w[i] = Xs_w[i].to_frame()
@@ -127,29 +135,31 @@ def MddsPLS_core(Xs,Y,lambd=0,R=1,mode="reg",verbose=False):
 		p_s[i] = p_i
 		mu_x_s[i] = Xs_w[i].mean(0)
 		sd_x_s[i] = Xs_w[i].std(0)
-		pos_nas[i] = np.where(np.isnan(Xs_w[i][:,0]))[0]
-		pos_no_na = np.where(np.isnan(Xs_w[i][:,0])==False)[0]
-		Xs_w[i][pos_no_na,:] = preprocessing.scale(Xs_w[i][pos_no_na,:])
-		if len(pos_nas[i])!=0:
-			# Imputation to mean
-			#Xs_w[i][pos_nas[i],:] = 0
-			# Imputation to best estimation according to Y
-			y_i_train = np.delete(Xs_w[i],pos_nas[i],0)
-			if mode=="reg":
-				x_train = {0:np.delete(Y,pos_nas[i],0)}
-				x_test = {0:np.delete(Y,pos_no_na,0)}
-			else:
-				Y_w = preprocessing.scale(get_dummies(Y)*1.0)
-				x_train = {0:np.delete(Y_w,pos_nas[i],0)}
-				x_test = {0:np.delete(Y_w,pos_no_na,0)}
-			model_init = ddspls(x_train,y_i_train,R=R,lambd=lambd)
-			y_test = model_init.predict(x_test)
-			Xs_w[i][pos_nas[i],:] = y_test
+		#pos_nas[i] = np.where(np.isnan(Xs_w[i][:,0]))[0]
+		#pos_no_na = np.where(np.isnan(Xs_w[i][:,0])==False)[0]
+		#Xs_w[i][pos_no_na,:] = preprocessing.scale(Xs_w[i][pos_no_na,:])
+		if False:
+			if len(pos_nas[i])!=0:
+				# Imputation to mean
+				#Xs_w[i][pos_nas[i],:] = 0
+				# Imputation to best estimation according to Y
+				y_i_train = np.delete(Xs_w[i],pos_nas[i],0)
+				if mode=="reg":
+					x_train = {0:np.delete(Y,pos_nas[i],0)}
+					x_test = {0:np.delete(Y,pos_no_na,0)}
+				else:
+					Y_w = preprocessing.scale(get_dummies(Y)*1.0)
+					x_train = {0:np.delete(Y_w,pos_nas[i],0)}
+					x_test = {0:np.delete(Y_w,pos_no_na,0)}
+				model_init = ddspls(x_train,y_i_train,R=R,lambd=lambd)
+				y_test = model_init.predict(x_test)
+				Xs_w[i][pos_nas[i],:] = y_test
+		Xs_w[i] = preprocessing.scale(Xs_w[i])
 	# Standardize Y
 	if mode != "reg":
 		Y_w = get_dummies(Y)
 	else:
-		Y_w = Y
+		Y_w = reshape_dict(Y)[0]
 	q = Y_w.shape[1]
 	mu_y = Y_w.mean(0)
 	sd_y = Y_w.std(0)
@@ -167,86 +177,167 @@ def MddsPLS_core(Xs,Y,lambd=0,R=1,mode="reg",verbose=False):
 	u_t_r_0 = {}
 	t_r = {}
 	z_r = {}
-	R_w = min(R,min(p_s))
-	if R_w > R:
-		R_w = R
+	z_t = {}
+	t_t = {}
 	for k in range(K):
 		if sum(sum(abs(Ms[k])))==0:
-			svd_k = {"v":np.zeros((Ms[k].shape[1], R_w))}
+			svd_k = {"v":np.zeros((Ms[k].shape[1], R))}
 		else:
 			svd_k_res = np.linalg.svd(Ms[k],full_matrices=False)
-			if svd_k_res[1].size<R:
-				eigs = np.zeros((1,R))
-				if svd_k_res[1].size==1:
-					eigs[0,0] = svd_k_res[1]
+			len_eig = svd_k_res[1].size
+			if len_eig<R:
+				eigs = np.zeros(R)
+				if len_eig==1:
+					eigs[0] = svd_k_res[1]
 				else:
-					eigs[range(svd_k_res[1].size-1)] = svd_k_res[1]
+					eigs[range(len_eig-1)] = svd_k_res[1]
 				if (svd_k_res[2].T).shape[1]<R:
 					additionnal = np.zeros(((svd_k_res[2].T).shape[0],R-(svd_k_res[2].T).shape[1]))
 					v_k = np.concatenate((svd_k_res[2].T,additionnal),axis=1)
 				else:
 					v_k = svd_k_res[2].T
-			for r_i in range(R):
-				if eigs[r_i]==0:
-					v_k[:,r_i] = 0
-			import pdb
-			pdb.set_trace()
+			elif len_eig>R:
+				proj_not_thresh = (Y_w.T.dot(Xs_w[k])).dot(svd_k_res[2].T)
+				eigs_not_thresh = np.zeros(len_eig)
+				for oo in range(len_eig):
+					eigs_not_thresh[oo] = np.sum(proj_not_thresh[:,oo]**2)
+				order_good = np.argsort(-eigs_not_thresh)
+				if R==1:
+					eigs = (svd_k_res[1][order_good[0]]).reshape(R)
+					v_k = (svd_k_res[2].T[:,order_good[0]]).reshape(((Ms[k].shape[1]),R))
+				else:
+					eigs = svd_k_res[1][order_good[range(R)]]
+					v_k = svd_k_res[2].T[:,order_good[range(R)]]
+			else:
+				eigs = svd_k_res[1]
+				v_k = svd_k_res[2].T
+			if R!=1:
+				for r_i in range(R):
+					if eigs[r_i]==0:
+						v_k[:,r_i] = 0
+			else:
+				if eigs==0:
+					v_k[:,0] = 0				
 			v_k_res = svd_k_res[2].T
-			svd_k = {"v":v_k_res[:,range(R_w)]}
+			svd_k = {"v":v_k}
 		u_t_r[k]=svd_k["v"]
 		u_t_r_0[k]=svd_k["v"]
+		z_t[k] = np.dot(Ms[k],u_t_r[k])
+		t_t[k] = np.dot(Xs[k],u_t_r[k])
 		if k==0:
-			for r in range(R_w):
+			for r in range(R):
 				t_r[r] = np.zeros((n, K))
 				z_r[r] = np.zeros((q, K))
-		for r in range(R_w):
-			t_r[r][:,k] = np.dot(Xs_w[k],u_t_r[k][:,r])
-			z_r[r][:,k] = np.dot(Ms[k],u_t_r[k][:,r])
-	t = np.zeros((n, R_w))
-	v = np.zeros((q, R_w))
-	t_all = np.zeros((n, R_w*K))
-	z_all = np.zeros((q, R_w*K))
-	for r in range(R_w):
-		z_all[:,np.repeat(r*K,K)+range(K)] = np.array(z_r[r])
-		t_all[:,np.repeat(r*K,K)+range(K)] = np.array(t_r[r])
-	svd_all_python = np.linalg.svd(z_all,full_matrices=False)
-	u = svd_all_python[2].T
-	v0 = svd_all_python[0]
-	v = v0
-	s = np.dot(Y_w,v0)
-	t = np.dot(t_all,u)
-	svd_all_frak_python = np.linalg.svd(np.dot(t.T,s),full_matrices=False)
-	u_frak = svd_all_frak_python[0]
-	v_frak = svd_all_frak_python[2].T
-	t_frak = np.dot(t,u_frak)
-	s_frak = np.dot(s,v_frak)
-	# Get regression matrix
-	alphas = []
-	for r in range(R_w):
-		n_t_2 = np.dot(t_frak[:,r].T,t_frak[:,r])
-		if n_t_2 != 0:
-			val = np.dot(s_frak[:,r].T,t_frak[:,r])/n_t_2
-			alphas.append(val)
+		if R!=1:
+			for r in range(R):
+				t_r[r][:,k] = np.dot(Xs_w[k],u_t_r[k][:,r])
+				z_r[r][:,k] = np.dot(Ms[k],u_t_r[k][:,r])
 		else:
-			alphas.append(0)
+			if K==1:
+				t_r[0] = np.dot(Xs_w[k],u_t_r[k])
+				z_r[0] = np.dot(Ms[k],u_t_r[k])
+			else:
+				t_r[0][:,k] = np.dot(Xs_w[k],u_t_r[k]).T
+				z_r[0][:,k] = np.dot(Ms[k],u_t_r[k]).T
+	T_super = np.zeros((n, R))
+	t_all = np.zeros((n, R*K))
+	z_all = np.zeros((q, R*K))
+	for k in range(K):
+		z_all[:,np.repeat(k*R,R)+range(R)] = np.array(z_t[k])
+		t_all[:,np.repeat(k*R,R)+range(R)] = np.array(t_t[k])
+	svd_all_python = np.linalg.svd(z_all,full_matrices=False)
+	if svd_all_python[1].size<R:
+		eigs = np.zeros(R)
+		if svd_all_python[1].size==1:
+			eigs[0] = svd_all_python[1]
+		else:
+			eigs[range(svd_all_python[1].size-1)] = svd_all_python[1]
+		if (svd_all_python[2].T).shape[1]<R:
+			additionnal = np.zeros(((svd_all_python[2].T).shape[0],R-(svd_all_python[2].T).shape[1]))
+			u_all = np.concatenate((svd_all_python[2].T,additionnal),axis=1)
+		else:
+			u_all = svd_all_python[2].T
+		if (svd_all_python[0]).shape[1]<R:
+			additionnal = np.zeros(((svd_all_python[0]).shape[0],R-(svd_all_python[0]).shape[1]))
+			v0 = np.concatenate((svd_all_python[0],additionnal),axis=1)
+		else:
+			v0 = svd_all_python[0]
+	else:
+		u_all = svd_all_python[2].T
+		v0 = svd_all_python[0]
+	#crosY_T = np.dot(Y_w.T,np.dot(t_all,u_all))
+	#power = (crosY_T**2).mean(0)
+	#orderGood = np.argsort(-power)
+	u_all = u_all#[:,orderGood]
+	V_super = copy.copy(v0)#[:,orderGood])
+	T_super = np.zeros((n,R))
+	u_t_super = {}
+	for k in range(K):
+		beta_k = u_all[np.repeat(k*R,R)+range(R),:]
+		u_t_super[k] = np.dot(u_t_r[k],beta_k)
+		T_super = T_super + np.dot(Xs_w[k],u_t_super[k])
+	vars_current = np.zeros(R)
+	Yt_Y = np.dot(Y_w,Y_w.T)
+	for r in range(R):
+		sc_r = T_super[:,r:(r+1)]
+		var_t_super_r = np.sum(sc_r**2)
+		if var_t_super_r!=0:
+			sc_r_tw = np.dot(sc_r,sc_r.T)
+			deno = np.linalg.norm(Yt_Y)*np.linalg.norm(sc_r_tw)
+			vars_current[r] = np.sum(np.diag(np.dot(Yt_Y,sc_r_tw)))/deno
+	if R>1:
+		ord_ = np.argsort(-vars_current)
+		test = np.sum((ord_-np.arange(R))**2)
+		if test>0:
+			T_super = T_super[:,ord_]
+			V_super = V_super[:,ord_]
+			for k in range(K):
+				u_t_super[k] <- u_t_super[k][:,ord_]
+	S_super = np.dot(Y_w,V_super)
+	svd_all_frak_python = np.linalg.svd(T_super,full_matrices=False)#,s),full_matrices=False)
+	v_ort = copy.copy(svd_all_frak_python[2].T)#svd_all_frak_python[0]
+	u_ort = copy.copy(v_ort)#svd_all_frak_python[2].T)
+	t_ort = np.dot(T_super,v_ort)
+	s_ort = np.dot(S_super,u_ort)
+	# Get regression matrix
+	T_S = np.dot(T_super.T,S_super)
+	Delta_ort = svd_all_frak_python[1]**2
+	if np.sum(Delta_ort)!=0:
+		D_0_inv = copy.copy(Delta_ort)*1.0
+		del_0 = np.where(D_0_inv < 1e-9)
+		no_del_0 = np.where(D_0_inv >= 1e-9)
+		D_0_inv[no_del_0] = 1/D_0_inv[no_del_0]
+		D_0_inv[del_0] =np.zeros(len(del_0))
+		D_0_inv = np.diag(D_0_inv)
+		B_0 = np.dot(np.dot(v_ort,np.dot(D_0_inv,v_ort.T)),T_S)
+	else:
+		B_0 = np.zeros((R,R))
+	if False:
+		alphas = []
+		for r in range(R):
+			n_t_2 = np.dot(t_ort[:,r].T,t_ort[:,r])
+			if n_t_2 != 0:
+				val = np.dot(s_ort[:,r].T,t_ort[:,r])/n_t_2
+				alphas.append(val)
+			else:
+				alphas.append(0)
 	if mode == "reg":
 		B = {}
 		for k in range(K):
-			beta_k = u[np.repeat(k*R_w,R_w)+range(R_w),:]
-			B[k] = np.dot(u_t_r[k],np.dot(beta_k,u_frak))
-			for r in range(R_w):
-				B[k][:,r] = B[k][:,r]*alphas[r]
-			B[k] = np.dot(B[k],np.dot(v_frak.T,v.T))
+			B[k] = np.dot(u_t_super[k],np.dot(B_0,V_super.T))#np.dot(u_t_r[k],np.dot(beta_k,v_ort))
+			#for r in range(R):
+			#	B[k][:,r] = B[k][:,r]*alphas[r]
+			#B[k] = np.dot(B[k],np.dot(u_ort.T,V_super.T))
 	else:
-		if np.sum(t_frak*t_frak)!=0:
-			n_components = min(R_w,len(set(Y))-1)
+		if np.sum(t_ort*t_ort)!=0:
+			n_components = min(R,len(set(Y))-1)
 			B = LinearDiscriminantAnalysis(n_components=n_components)
-			B.fit(t,Y)
+			B.fit(T_super,Y)
 		else:
 			B = None
-	out = {"u":u_t_r,"v":v,"ts":t_r,"beta_comb":u,"t":t,"s":s,
-	"t_frak":t_frak,"s_frak":s_frak,"B":B,"mu_x_s":mu_x_s,
-	"sd_x_s":sd_x_s,"mu_y":mu_y,"sd_y":sd_y,"R":R_w,"q":q,
+	out = {"u":u_t_r,"V_super":V_super,"ts":t_r,"beta_comb":u_all,"T_super":T_super,"S_super":S_super,
+	"t_ort":t_ort,"s_ort":s_ort,"B":B,"mu_x_s":mu_x_s,
+	"sd_x_s":sd_x_s,"mu_y":mu_y,"sd_y":sd_y,"R":R,"q":q,
 	"Ms":Ms,"lambd":lambd}
 	return out;
 
@@ -260,12 +351,13 @@ class model_class:
 	Attributes
 	----------
 	u : dict
-		a dictionnary of length *K*. Each element is a *p_k*X*R* matrix : the weights
-		per block per axis
-	v : numpy matrix
+		a dictionnary of length *K*. Each element is a *p_k*X*R* matrix : the 
+		weights per block per axis
+	V_super : numpy matrix
 		A *q*X*R* matrix : the weights for the *Y* part.
 	ts : dict
-		length *R*. Each element is a *n*X*K* matrix : the scores per axis per block
+		length *R*. Each element is a *n*X*K* matrix : the scores per axis per
+		block
 	beta_comb : int
 		the number of components to be built, between 1 and the minimum of the
 		number of columns of Y and the total number of co-variables among the
@@ -287,15 +379,15 @@ class model_class:
 		the built model according to previous parameters
 
 	"""
-	def __init__(self,u,v,ts,beta_comb,t,s,t_frak,s_frak,B,mu_x_s,sd_x_s,mu_y,sd_y,R,q,Ms,lambd):
+	def __init__(self,u,V_super,ts,beta_comb,T_super,S_super,t_ort,s_ort,B,mu_x_s,sd_x_s,mu_y,sd_y,R,q,Ms,lambd):
 		self.u = u
-		self.v = v
+		self.V_super = V_super
 		self.ts = ts
 		self.beta_comb = beta_comb
-		self.t = t
-		self.s = s
-		self.t_frak = t_frak
-		self.s_frak = s_frak
+		self.T_super = T_super
+		self.S_super = S_super
+		self.t_ort = t_ort
+		self.s_ort = s_ort
 		self.B = B
 		self.mu_x_s = mu_x_s
 		self.sd_x_s = sd_x_s
@@ -358,9 +450,10 @@ class ddspls:
 		self.errMin_imput = errMin_imput
 		self.maxIter_imput = maxIter_imput
 		self.verbose = verbose
+		self.model = model
 		n = Xs[0].shape[0]
 		if n!=1:
-			self.getModel(model)
+			self.getModel(self.model)
 		else:
 			self.model = {}
 
@@ -375,32 +468,55 @@ class ddspls:
 			 method is not used.
 		"""
 		if model==None:
-			Xs = self.Xs
-			Y = self.Y
-			lambd = self.lambd
-			R = self.R
-			mode = self.mode
-			errMin_imput = self.errMin_imput
-			maxIter_imput = self.maxIter_imput
-			verbose = self.verbose
-			Xs_w = reshape_dict(Xs)
+			Xs = reshape_dict(self.Xs)
+			K = len(Xs)
+			Xs_w = {}
+			for k in range(K):
+				Xs_w[k] = copy.copy(Xs[k])
+			Y = copy.copy(self.Y)
+			lambd = copy.copy(self.lambd)
+			R = copy.copy(self.R)
+			mode = copy.copy(self.mode)
+			errMin_imput = copy.copy(self.errMin_imput)
+			maxIter_imput = copy.copy(self.maxIter_imput)
+			verbose = copy.copy(self.verbose)
 			has_converged = maxIter_imput
 			id_na = {}
-			K = len(Xs_w)
 			na_lengths = 0
+			mu_x_s = {}
+			sd_x_s = {}
+			mu_y = Y.mean(0)
+			sd_y = Y.std(0)
 			for k in range(K):
+				if K>1:
+					if Xs_w[1][0,0] == 0.:
+						import pdb
+						pdb.set_trace()
 				id_na[k] = np.where(np.isnan(Xs_w[k][:,0]))[0]
 				na_lengths = na_lengths + len(id_na[k])
+				mu_x_s[k] = np.delete(Xs_w[k],id_na[k],0).mean(0)
+				sd_x_s[k] = np.delete(Xs_w[k],id_na[k],0).std(0)
 			if na_lengths != 0:
 				for k in range(K):
+					pos_no_na = np.where(np.isnan(Xs_w[k][:,0])==False)[0]
 					if len(id_na[k]) != 0:
-						mu_k = Xs_w[k].mean(0)
-						for k_ik in id_na[k]:
-							Xs_w[k][k_ik,:] = mu_k
-			mod = MddsPLS_core(Xs_w,Y,lambd=lambd,R=R,mode=mode,verbose=verbose)
+						#mu_k = np.delete(Xs_w[k],id_na[k],0).mean(0)
+						#for k_ik in id_na[k]:
+						#	Xs_w[k][k_ik,:] = mu_k
+						y_k_train = np.delete(Xs_w[k],id_na[k],0)
+						if mode=="reg":
+							x_train = {0:np.delete(Y,id_na[k],0)}
+							x_test = {0:np.delete(Y,pos_no_na,0)}
+						else:
+							Y_w = preprocessing.scale(get_dummies(Y)*1.0)
+							x_train = {0:np.delete(Y_w,id_na[k],0)}
+							x_test = {0:np.delete(Y_w,pos_no_na,0)}
+						model_init = ddspls(x_train,y_k_train,R=R,lambd=lambd)
+						y_test = model_init.predict(x_test)
+						Xs_w[k][id_na[k],:] = y_test
+			mod_0 = MddsPLS_core(Xs_w,Y,lambd=lambd,R=R,mode=mode,verbose=verbose)
 			if K>1:
-				mod_0 = MddsPLS_core(Xs_w,Y,lambd=lambd,R=R,mode=mode,verbose=verbose)
-				if sum(sum(abs(mod_0["t"])))!=0:
+				if sum(sum(abs(mod_0["T_super"])))!=0:
 					err = 2
 					iterat = 0
 					while (iterat < maxIter_imput)&(err>errMin_imput):
@@ -408,45 +524,61 @@ class ddspls:
 						for k in range(K):
 							if len(id_na[k])>0:
 								no_k = np.arange(K)
-								np.delete(no_k ,k)
+								np.delete(no_k,k)
 								i_k = id_na[k]
-								Xs_i = mod_0["s"]
+								Xs_i = mod_0["S_super"]
 								Xs_i = np.delete(Xs_i, i_k, axis=0)
-								newX_i = mod_0["s"][i_k,:]
+								newX_i = mod_0["S_super"][i_k,:]
 								u_k = mod_0["u"][k].T[0]
 								Var_selected_k = np.where(abs(u_k)!=0)[0]
 								if(len(Var_selected_k)>0):
 									Y_i_k = Xs_w[k][:,Var_selected_k]
 									Y_i_k = np.delete(Y_i_k,i_k,axis=0)
-									model_here_0 = MddsPLS_core(Xs_i,Y_i_k,lambd=lambd)
-									model_here = model_class(u=model_here_0["u"],
-									v=model_here_0["v"],
-									ts=model_here_0["ts"],
-									beta_comb=model_here_0["beta_comb"],
-									t=model_here_0["t"],s=model_here_0["s"],
-									t_frak=model_here_0["t_frak"],
-									s_frak=model_here_0["s_frak"],
-									B=model_here_0["B"],
-									mu_x_s=model_here_0["mu_x_s"],
-									sd_x_s=model_here_0["sd_x_s"],
-									mu_y=model_here_0["mu_y"],
-									sd_y=model_here_0["sd_y"],
-									R=model_here_0["R"],
-									q=model_here_0["q"],
-									Ms=model_here_0["Ms"],
-									lambd=model_here_0["lambd"])
-									mod_i_k = ddspls(Xs=Xs_i,Y=Y_i_k,lambd=lambd,R=R,
-									model=model_here,maxIter_imput=maxIter_imput,mode="reg")
-									print("OOO")
-									Xs_w[k][i_k,Var_selected_k] = mod_i_k.predict(newX_i)
+									model_here_0 = MddsPLS_core(Xs_i,Y_i_k,
+										lambd=lambd,R=R)
+									model_here = model_class(
+										u=model_here_0["u"],
+										V_super=model_here_0["V_super"],
+										ts=model_here_0["ts"],
+										beta_comb=model_here_0["beta_comb"],
+										T_super=model_here_0["T_super"],S_super=model_here_0["S_super"],
+										t_ort=model_here_0["t_ort"],
+										s_ort=model_here_0["s_ort"],
+										B=model_here_0["B"],
+										mu_x_s=model_here_0["mu_x_s"],
+										sd_x_s=model_here_0["sd_x_s"],
+										mu_y=model_here_0["mu_y"],
+										sd_y=model_here_0["sd_y"],
+										R=model_here_0["R"],
+										q=model_here_0["q"],
+										Ms=model_here_0["Ms"],
+										lambd=model_here_0["lambd"])
+									mod_i_k = ddspls(
+										Xs_i,
+										Y_i_k,
+										lambd,
+										R,
+										"reg",
+										errMin_imput,
+										maxIter_imput,
+										False,
+										model_here)
+									out = mod_i_k.predict(newX_i)
+									for i_var in range(len(Var_selected_k)):
+										var=Var_selected_k[i_var]
+										Xs_w[k][i_k,var] = out[:,i_var].T
 						mod = MddsPLS_core(Xs_w,Y,lambd=lambd,R=R,mode=mode)
-						if sum(sum(abs(mod["t"])))!=0:
+						mod["mu_x_s"] = mu_x_s
+						mod["mu_y"] = mu_y
+						mod["sd_y"] = sd_y
+						mod["sd_x_s"] = sd_x_s
+						if sum(sum(abs(mod["T_super"])))!=0:
 							err = 0
 							for r in range(R):
-								n_new = np.sqrt(sum(np.square(mod["t_frak"][:,r])))
-								n_0 = np.sqrt(sum(np.square(mod_0["t_frak"][:,r])))
+								n_new = np.sqrt(sum(np.square(mod["t_ort"][:,r])))
+								n_0 = np.sqrt(sum(np.square(mod_0["t_ort"][:,r])))
 								if n_new*n_0!=0:
-									err_r = 1 - abs(np.dot(mod["t_frak"][:,r].T,mod_0["t_frak"][:,r]))/(n_new*n_0)
+									err_r = 1 - abs(np.dot(mod["t_ort"][:,r].T,mod_0["t_ort"][:,r]))/(n_new*n_0)
 									err = err + err_r
 						else:
 							err = 0
@@ -455,15 +587,15 @@ class ddspls:
 						if err < errMin_imput:
 							has_converged = iterat
 						mod_0 = mod
-			self.model = model_class(u=mod["u"],v=mod["v"],ts=mod["ts"],
-					  beta_comb=mod["beta_comb"],t=mod["t"],s=mod["s"],
-					  t_frak=mod["t_frak"],s_frak=mod["s_frak"],B=mod["B"],
+			mod = mod_0
+			self.Xs = Xs_w
+			self.model = model_class(u=mod["u"],V_super=mod["V_super"],ts=mod["ts"],
+					  beta_comb=mod["beta_comb"],T_super=mod["T_super"],S_super=mod["S_super"],
+					  t_ort=mod["t_ort"],s_ort=mod["s_ort"],B=mod["B"],
 					  mu_x_s=mod["mu_x_s"],sd_x_s=mod["sd_x_s"],mu_y=mod["mu_y"],
 					  sd_y=mod["sd_y"],R=mod["R"],q=mod["q"],Ms=mod["Ms"],
 					  lambd=mod["lambd"])
 			self.has_converged = has_converged
-		else:
-			self.model = model
 
 	def fill_X_test(self,X_test_0):
 		"""Internal method which permits to estimate missing values in the
@@ -476,16 +608,18 @@ class ddspls:
 			problem
 		"""
 		X_test = reshape_dict(X_test_0)
-		lambd,R,mod = self.lambd,self.R,self.model
 		K = len(X_test)
-		n = mod.t_frak.shape[0]
+		X_test_w = {}
+		for k in range(K):
+			X_test_w[k] = copy.copy(X_test[k])
+		lambd,R,mod = self.lambd,self.R,self.model
+		n = mod.t_ort.shape[0]
 		id_na_test = []
 		# id_na_test : blocks with missing valueA
 		na_test_lengths = 0
-		X_test_w = X_test
 		pos_vars_Y_here,t_X_here,number_coeff_no_ok = {},{},0
 		for k in range(K):
-			id_na_test.append((np.isnan(X_test[k][:,0]))[0]*1)
+			id_na_test.append((np.isnan(X_test_w[k][:,0]))[0]*1)
 			na_test_lengths = na_test_lengths + id_na_test[k]
 		if na_test_lengths != 0:
 			pos_ok = np.where(np.array(id_na_test)==0)[0]
@@ -532,7 +666,7 @@ class ddspls:
 			for r_j in range(R):
 				for k_j in range(K_h):
 					kk = pos_ok[k_j]
-					xx = X_test[kk]
+					xx = X_test_w[kk]
 					for id_xx in range(n_test):
 						variab_sd_no_0 = np.where(sd_x_0[k_j]!=0)
 						for v_sd_no_0 in variab_sd_no_0:
@@ -564,6 +698,7 @@ class ddspls:
 			The dictionnary of matrices corresponding to the test data set.
 		"""
 		newX_w = reshape_dict(newX)
+		newX_w_out = {}
 		K = len(newX_w)
 		n_new = newX_w[0].shape[0]
 		mod = self.model
@@ -581,17 +716,19 @@ class ddspls:
 					newX_w = self.fill_X_test(newX)
 				else:
 					for k in range(K):
+						newX_w_out[k] = copy.copy(newX_w[k])
 						if id_na_test[k] != 0:
-							newX_w[k][0,:] = mod.mu_x_s[k]
+							newX_w_out[k][0,:] = mod.mu_x_s[k]
 			for k in range(K):
+				newX_w_out[k] = copy.copy(newX_w[k])
 				variab_sd_no_0 = np.where(mod.sd_x_s[k]!=0)[0]
 				for v_sd_no_0 in variab_sd_no_0:
-					newX_w[k][0,v_sd_no_0] = (newX_w[k][0,v_sd_no_0] -
+					newX_w_out[k][0,v_sd_no_0] = (newX_w[k][0,v_sd_no_0] -
 						mod.mu_x_s[k][v_sd_no_0])/mod.sd_x_s[k][v_sd_no_0]
 			if self.mode=="reg":
 				newY = np.zeros((1,q))
 				for k in range(K):
-					newY = newY + np.dot(newX_w[k],mod.B[k])
+					newY = newY + np.dot(newX_w_out[k],mod.B[k])
 				for q_i in range(q):
 					newY[0,q_i] = newY[0,q_i]*mod.sd_y[q_i]+mod.mu_y[q_i]
 			else:
@@ -599,20 +736,20 @@ class ddspls:
 					t_r_all = np.zeros((1,K*R))
 					for k in range(K):
 						for r in range(R):
-							t_r_all[0,np.repeat(K*r,K)+range(K)] = np.dot(newX_w[k],mod.u[k][:,r])
+							t_r_all[0,np.repeat(K*r,K)+range(K)] = np.dot(newX_w_out[k],mod.u[k][:,r])
 					df_new = np.dot(t_r_all,mod.beta_comb)
 					newY = mod.B.predict(df_new)
 				else:
 					newY = rd.sample(set(self.Y),1)
 		else:
 			if self.mode=="reg":
-				newY = np.zeros((n_new,q))
+				newY = np.zeros((n_new,q))	
 			else:
 				newY = []
 			for i_new in range(n_new):
 				t_i_new = {}
 				for k in range(K):
-					t_i_new[k] = newX_w[k][(i_new):(i_new+1),:]
+					t_i_new[k] = copy.copy(newX_w[k][(i_new):(i_new+1),:])
 				if self.mode=="reg":
 					newY[i_new,:] = self.predict(t_i_new)
 				else:
@@ -749,8 +886,13 @@ def perf_ddspls(Xs,Y,lambd_min=0,lambd_max=None,n_lambd=1,lambds=None,R=1,
 			"fold":fold}
 		paral_list.append(dicoco)
 	NCORES_w = int(min(NCORES,len(paras[0])))
-	p = Pool(processes=NCORES_w)
-	ERRORS = p.map(getResult, paral_list)
+	if NCORES_w>1:
+		from multiprocessing import Pool
+		p = Pool(processes=NCORES_w)
+		ERRORS = p.map(getResult, paral_list)
+		p.terminate()
+	else:
+		ERRORS = getResult(paral_list[0])
 	paras_out = expandgrid(R,lambds_w)
 	if mode=="reg":
 		ERRORS_OUT = np.zeros((len(paras_out[0]),q))
@@ -771,9 +913,15 @@ def perf_ddspls(Xs,Y,lambd_min=0,lambd_max=None,n_lambd=1,lambds=None,R=1,
 			for ll in range(len(R_koko)):
 				if (R_koko[ll]==R_yo)&(lambd_koko[ll]==lambd_yo):
 					if mode =="reg":
-						errs.append(ERRORS[koko]["RMSE"][ll,])
+						if len(paral_list)!=1:
+							errs.append(ERRORS[koko]["RMSE"][ll,])
+						else:
+							errs.append(ERRORS["RMSE"][ll,])
 					else:
-						errs.append(ERRORS[koko][ll])
+						if len(paral_list)!=1:
+							errs.append(ERRORS[koko][ll])
+						else:
+							errs.append(ERRORS[ll])
 		DIM = len(errs)
 		DIM_2 = 1
 		if type(errs[0])!=float:
@@ -796,6 +944,5 @@ def perf_ddspls(Xs,Y,lambd_min=0,lambd_max=None,n_lambd=1,lambds=None,R=1,
 	if mode!="reg":
 		for iii in range(len(ERRORS_OUT)):
 			DF_OUT[iii,2:DF_OUT.shape[1]] = ERRORS_OUT[iii]
-	p.terminate()
 	return DF_OUT;
 

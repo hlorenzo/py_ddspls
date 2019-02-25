@@ -7,15 +7,17 @@
 
 """
 
+def f(x):
+	return x*x
+
 import numpy as np
 from pandas import get_dummies
 import warnings
 with warnings.catch_warnings():
 	warnings.filterwarnings("ignore",category=DeprecationWarning)
-	import imp
-	from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
+import importlib
+from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn import preprocessing
-from multiprocessing import Pool
 import random as rd
 from itertools import product as itertools_product
 
@@ -131,12 +133,25 @@ def MddsPLS_core(Xs,Y,lambd=0,R=1,mode="reg",verbose=False):
 		pos_no_na = np.where(np.isnan(Xs_w[i][:,0])==False)[0]
 		Xs_w[i][pos_no_na,:] = preprocessing.scale(Xs_w[i][pos_no_na,:])
 		if len(pos_nas[i])!=0:
-			Xs_w[i][pos_nas[i],:] = 0
+			# Imputation to mean
+			#Xs_w[i][pos_nas[i],:] = 0
+			# Imputation to best estimation according to Y
+			y_i_train = np.delete(Xs_w[i],pos_nas[i],0)
+			if mode=="reg":
+				x_train = {0:np.delete(Y,pos_nas[i],0)}
+				x_test = {0:np.delete(Y,pos_no_na,0)}
+			else:
+				Y_w = preprocessing.scale(get_dummies(Y)*1.0)
+				x_train = {0:np.delete(Y_w,pos_nas[i],0)}
+				x_test = {0:np.delete(Y_w,pos_no_na,0)}
+			model_init = ddspls(x_train,y_i_train,R=R,lambd=lambd)
+			y_test = model_init.predict(x_test)
+			Xs_w[i][pos_nas[i],:] = y_test
 	# Standardize Y
 	if mode != "reg":
 		Y_w = get_dummies(Y)
 	else:
-		Y_w = Y
+		Y_w = reshape_dict(Y)[0]
 	q = Y_w.shape[1]
 	mu_y = Y_w.mean(0)
 	sd_y = Y_w.std(0)
@@ -154,35 +169,91 @@ def MddsPLS_core(Xs,Y,lambd=0,R=1,mode="reg",verbose=False):
 	u_t_r_0 = {}
 	t_r = {}
 	z_r = {}
-	R_w = min(R,min(p_s))
-	if R_w > R:
-		R_w = R
 	for k in range(K):
 		if sum(sum(abs(Ms[k])))==0:
-			svd_k = {"v":np.zeros((Ms[k].shape[1], R_w))}
+			svd_k = {"v":np.zeros((Ms[k].shape[1], R))}
 		else:
 			svd_k_res = np.linalg.svd(Ms[k],full_matrices=False)
+			len_eig = svd_k_res[1].size
+			if len_eig<R:
+				eigs = np.zeros(R)
+				if len_eig==1:
+					eigs[0] = svd_k_res[1]
+				else:
+					eigs[range(len_eig-1)] = svd_k_res[1]
+				if (svd_k_res[2].T).shape[1]<R:
+					additionnal = np.zeros(((svd_k_res[2].T).shape[0],R-(svd_k_res[2].T).shape[1]))
+					v_k = np.concatenate((svd_k_res[2].T,additionnal),axis=1)
+				else:
+					v_k = svd_k_res[2].T
+			elif len_eig>R:
+				proj_not_thresh = (Y_w.T.dot(Xs_w[k])).dot(svd_k_res[2].T)
+				eigs_not_thresh = np.zeros(len_eig)
+				for oo in range(len_eig):
+					eigs_not_thresh[oo] = np.sum(proj_not_thresh[:,oo]**2)
+				order_good = np.argsort(-eigs_not_thresh)
+				if R==1:
+					eigs = (svd_k_res[1][order_good[0]]).reshape(R)
+					v_k = (svd_k_res[2].T[:,order_good[0]]).reshape(((Ms[k].shape[1]),R))
+				else:
+					eigs = svd_k_res[1][order_good[range(R)]]
+					v_k = svd_k_res[2].T[:,order_good[range(R)]]
+			else:
+				eigs = svd_k_res[1]
+				v_k = svd_k_res[2].T
+			if R!=1:
+				for r_i in range(R):
+					if eigs[r_i]==0:
+						v_k[:,r_i] = 0
+			else:
+				if eigs==0:
+					v_k[:,0] = 0				
 			v_k_res = svd_k_res[2].T
-			svd_k = {"v":v_k_res[:,range(R_w)]}
+			svd_k = {"v":v_k}
 		u_t_r[k]=svd_k["v"]
 		u_t_r_0[k]=svd_k["v"]
 		if k==0:
-			for r in range(R_w):
+			for r in range(R):
 				t_r[r] = np.zeros((n, K))
 				z_r[r] = np.zeros((q, K))
-		for r in range(R_w):
-			t_r[r][:,k] = np.dot(Xs_w[k],u_t_r[k][:,r])
-			z_r[r][:,k] = np.dot(Ms[k],u_t_r[k][:,r])
-	t = np.zeros((n, R_w))
-	v = np.zeros((q, R_w))
-	t_all = np.zeros((n, R_w*K))
-	z_all = np.zeros((q, R_w*K))
-	for r in range(R_w):
+		if R!=1:
+			for r in range(R):
+				t_r[r][:,k] = np.dot(Xs_w[k],u_t_r[k][:,r])
+				z_r[r][:,k] = np.dot(Ms[k],u_t_r[k][:,r])
+		else:
+			if K==1:
+				t_r[0] = np.dot(Xs_w[k],u_t_r[k])
+				z_r[0] = np.dot(Ms[k],u_t_r[k])
+			else:
+				t_r[0][:,k] = np.dot(Xs_w[k],u_t_r[k]).T
+				z_r[0][:,k] = np.dot(Ms[k],u_t_r[k]).T
+	t = np.zeros((n, R))
+	v = np.zeros((q, R))
+	t_all = np.zeros((n, R*K))
+	z_all = np.zeros((q, R*K))
+	for r in range(R):
 		z_all[:,np.repeat(r*K,K)+range(K)] = np.array(z_r[r])
 		t_all[:,np.repeat(r*K,K)+range(K)] = np.array(t_r[r])
 	svd_all_python = np.linalg.svd(z_all,full_matrices=False)
-	u = svd_all_python[2].T
-	v0 = svd_all_python[0]
+	if svd_all_python[1].size<R:
+		eigs = np.zeros(R)
+		if svd_all_python[1].size==1:
+			eigs[0] = svd_all_python[1]
+		else:
+			eigs[range(svd_all_python[1].size-1)] = svd_all_python[1]
+		if (svd_all_python[2].T).shape[1]<R:
+			additionnal = np.zeros(((svd_all_python[2].T).shape[0],R-(svd_all_python[2].T).shape[1]))
+			u = np.concatenate((svd_all_python[2].T,additionnal),axis=1)
+		else:
+			u = svd_all_python[2].T
+		if (svd_all_python[0]).shape[1]<R:
+			additionnal = np.zeros(((svd_all_python[0]).shape[0],R-(svd_all_python[0]).shape[1]))
+			v0 = np.concatenate((svd_all_python[0],additionnal),axis=1)
+		else:
+			v0 = svd_all_python[0]
+	else:
+		u = svd_all_python[2].T
+		v0 = svd_all_python[0]
 	v = v0
 	s = np.dot(Y_w,v0)
 	t = np.dot(t_all,u)
@@ -193,7 +264,7 @@ def MddsPLS_core(Xs,Y,lambd=0,R=1,mode="reg",verbose=False):
 	s_frak = np.dot(s,v_frak)
 	# Get regression matrix
 	alphas = []
-	for r in range(R_w):
+	for r in range(R):
 		n_t_2 = np.dot(t_frak[:,r].T,t_frak[:,r])
 		if n_t_2 != 0:
 			val = np.dot(s_frak[:,r].T,t_frak[:,r])/n_t_2
@@ -203,25 +274,63 @@ def MddsPLS_core(Xs,Y,lambd=0,R=1,mode="reg",verbose=False):
 	if mode == "reg":
 		B = {}
 		for k in range(K):
-			beta_k = u[np.repeat(k*R_w,R_w)+range(R_w),:]
+			beta_k = u[np.repeat(k*R,R)+range(R),:]
+			a1 = np.dot(beta_k,u_frak)
+			a2 = u_t_r[k]
 			B[k] = np.dot(u_t_r[k],np.dot(beta_k,u_frak))
-			for r in range(R_w):
+			for r in range(R):
 				B[k][:,r] = B[k][:,r]*alphas[r]
 			B[k] = np.dot(B[k],np.dot(v_frak.T,v.T))
 	else:
 		if np.sum(t_frak*t_frak)!=0:
-			n_components = min(R_w,len(set(Y))-1)
+			n_components = min(R,len(set(Y))-1)
 			B = LinearDiscriminantAnalysis(n_components=n_components)
 			B.fit(t,Y)
 		else:
 			B = None
 	out = {"u":u_t_r,"v":v,"ts":t_r,"beta_comb":u,"t":t,"s":s,
 	"t_frak":t_frak,"s_frak":s_frak,"B":B,"mu_x_s":mu_x_s,
-	"sd_x_s":sd_x_s,"mu_y":mu_y,"sd_y":sd_y,"R":R_w,"q":q,
+	"sd_x_s":sd_x_s,"mu_y":mu_y,"sd_y":sd_y,"R":R,"q":q,
 	"Ms":Ms,"lambd":lambd}
 	return out;
 
 class model_class:
+	"""Class permitting to access the ddspls model computation results.
+	*K* is the number of blocks in the *X* part.
+	*p_k* is, for each block *k*, the number of variables in block *k*.
+	*q* is the number of variables in matrix *Y*.
+	*R* is the number of dimensions requested by the user.
+
+	Attributes
+	----------
+	u : dict
+		a dictionnary of length *K*. Each element is a *p_k*X*R* matrix : the weights
+		per block per axis
+	v : numpy matrix
+		A *q*X*R* matrix : the weights for the *Y* part.
+	ts : dict
+		length *R*. Each element is a *n*X*K* matrix : the scores per axis per block
+	beta_comb : int
+		the number of components to be built, between 1 and the minimum of the
+		number of columns of Y and the total number of co-variables among the
+		all blocks (default is 1)
+	t : 
+	mode : str
+		equals to "reg" in the regression context (and default). Any other
+		choice would produce "classification" analysis.
+	errMin_imput : float
+		minimal error in the Tribe Stage of the Koh-Lanta algorithm (default
+		is 1e-9)
+	maxIter_imput : int
+		Maximal number of iterations in the Tribe Stage of the Koh-Lanta
+		algorithm. If equals to 0, mean imputation is  considered (default is
+		5)
+	verbose : bool
+		if TRUE, print specificities of the object (default is false)
+	model : ddspls
+		the built model according to previous parameters
+
+	"""
 	def __init__(self,u,v,ts,beta_comb,t,s,t_frak,s_frak,B,mu_x_s,sd_x_s,mu_y,sd_y,R,q,Ms,lambd):
 		self.u = u
 		self.v = v
@@ -243,7 +352,7 @@ class model_class:
 
 class ddspls:
 	"""Main class of the package. Filled with propoerties of any built
-	 ddsPLS model.
+	ddsPLS model.
 
 	Attributes
 	----------
@@ -251,14 +360,14 @@ class ddspls:
 		a dictionnary of the different co-factor numpy matrices of the problem
 	Y :  numpy matrix
 		either a multi-variate numpy matrix defining the regression case
-		 response matrix. Or a single-column numpy matrix in case of 
+		response matrix. Or a single-column numpy matrix in case of 
 		classification
 	lambd : float
 		the regularization coefficient, between 0 and 1 (default is 0)
 	R : int
 		the number of components to be built, between 1 and the minimum of the
-		 number of columns of Y and the total number of co-variables among the
-		 all blocks (default is 1)
+		number of columns of Y and the total number of co-variables among the
+		all blocks (default is 1)
 	mode : str
 		equals to "reg" in the regression context (and default). Any other
 		choice would produce "classification" analysis.
@@ -267,11 +376,11 @@ class ddspls:
 		is 1e-9)
 	maxIter_imput : int
 		Maximal number of iterations in the Tribe Stage of the Koh-Lanta
-		 algorithm. If equals to 0, mean imputation is  considered (default is
+		algorithm. If equals to 0, mean imputation is  considered (default is
 		5)
 	verbose : bool
 		if TRUE, print specificities of the object (default is false)
-	model : ddspls
+	model : model_class
 		the built model according to previous parameters
 
 	Methods
@@ -354,15 +463,28 @@ class ddspls:
 									Y_i_k = Xs_w[k][:,Var_selected_k]
 									Y_i_k = np.delete(Y_i_k,i_k,axis=0)
 									model_here_0 = MddsPLS_core(Xs_i,Y_i_k,lambd=lambd)
-									model_here = model_class(u=model_here_0["u"],v=model_here_0["v"],ts=model_here_0["ts"],
-								  beta_comb=model_here_0["beta_comb"],t=model_here_0["t"],s=model_here_0["s"],
-								  t_frak=model_here_0["t_frak"],s_frak=model_here_0["s_frak"],B=model_here_0["B"],
-								  mu_x_s=model_here_0["mu_x_s"],sd_x_s=model_here_0["sd_x_s"],mu_y=model_here_0["mu_y"],
-								  sd_y=model_here_0["sd_y"],R=model_here_0["R"],q=model_here_0["q"],Ms=model_here_0["Ms"],
-								  lambd=model_here_0["lambd"])
+									model_here = model_class(u=model_here_0["u"],
+									v=model_here_0["v"],
+									ts=model_here_0["ts"],
+									beta_comb=model_here_0["beta_comb"],
+									t=model_here_0["t"],s=model_here_0["s"],
+									t_frak=model_here_0["t_frak"],
+									s_frak=model_here_0["s_frak"],
+									B=model_here_0["B"],
+									mu_x_s=model_here_0["mu_x_s"],
+									sd_x_s=model_here_0["sd_x_s"],
+									mu_y=model_here_0["mu_y"],
+									sd_y=model_here_0["sd_y"],
+									R=model_here_0["R"],
+									q=model_here_0["q"],
+									Ms=model_here_0["Ms"],
+									lambd=model_here_0["lambd"])
 									mod_i_k = ddspls(Xs=Xs_i,Y=Y_i_k,lambd=lambd,R=R,
-							  model=model_here,maxIter_imput=maxIter_imput,mode="reg")
-									Xs_w[k][i_k,Var_selected_k] = mod_i_k.predict(newX_i)
+									model=model_here,maxIter_imput=maxIter_imput,mode="reg")
+									out = mod_i_k.predict(newX_i)
+									for i_var in range(len(Var_selected_k)):
+										var=Var_selected_k[i_var]
+										Xs_w[k][i_k,var] = out[:,i_var].T
 						mod = MddsPLS_core(Xs_w,Y,lambd=lambd,R=R,mode=mode)
 						if sum(sum(abs(mod["t"])))!=0:
 							err = 0
@@ -536,7 +658,7 @@ class ddspls:
 			for i_new in range(n_new):
 				t_i_new = {}
 				for k in range(K):
-					t_i_new[k] = newX[k][(i_new):(i_new+1),:]
+					t_i_new[k] = newX_w[k][(i_new):(i_new+1),:]
 				if self.mode=="reg":
 					newY[i_new,:] = self.predict(t_i_new)
 				else:
@@ -547,7 +669,7 @@ def perf_ddspls(Xs,Y,lambd_min=0,lambd_max=None,n_lambd=1,lambds=None,R=1,
 	kfolds="loo",mode="reg",fold_fixed=None,errMin_imput=1e-9,maxIter_imput=5,
 	NCORES=1):
 	"""Permits to start cross-validation processes. A parallelized procedure
-	 is accessible thanks to parameter NCORES, when >1.
+	is accessible thanks to parameter NCORES, when >1.
 
 	Parameters
 	----------
@@ -555,13 +677,13 @@ def perf_ddspls(Xs,Y,lambd_min=0,lambd_max=None,n_lambd=1,lambds=None,R=1,
 		a dictionnary of the different co-factor numpy matrices of the problem
 	Y :  numpy matrix
 		either a multi-variate numpy matrix defining the regression case
-		 response matrix. Or a single-column numpy matrix in case of
+		response matrix. Or a single-column numpy matrix in case of
 		classification
 	lambd_min : float
 		minimal value of lambd to be tested (default is *0*)
 	lambd_max : float
 		maximal value of lambd to be tested (default is *None*). If *None*, the
-		 highest value which permits to not get an empty model is chosen
+		highest value which permits to not get an empty model is chosen
 	n_lambda : int
 		number of lambd to be testes, regularly sampled between lambd_min and
 		lambd_max (default is 1)
@@ -569,26 +691,28 @@ def perf_ddspls(Xs,Y,lambd_min=0,lambd_max=None,n_lambd=1,lambds=None,R=1,
 		if the user want to test specific values of lambd, else put to *None*
 	R : int
 		the number of components to be built, between 1 and the minimum of the
-		 number of columns of Y and the total number of co-variables among the
-		 all blocks (default is 1)
+		number of columns of Y and the total number of co-variables among the
+		all blocks (default is 1)
 	kfolds : int or str
 		the number of folds in the cross-validation process. In case equal to
-		 *loo*, then leave-one-out cross-validation is perfomed (default value)
+		*loo*, then leave-one-out cross-validation is perfomed (default value).
+		If equal to *fixed* then *fold_fixed* argument is considered
 	mode : str
 		equals to "reg" in the regression context (and default). Any other
-		choice would produce "classification" analysis.
+		choice would produce "classification" analysis
 	fold_fixed : sdarray
 		if the user wants samples to be removed in the same time in the cross-
 		validation process. This is a sdarray of length the total number of
-		 individuals where each is an integer defining the index of the fold.
-		Default is *None* which corresponds to classical f-folds cross
-		validation
+		individuals where each is an integer defining the index of the fold.
+		Default is *None* which corresponds to classical f-folds cross-
+		validation. Only taken into account if *kfolds==fixed* (default is 
+		*None*)
 	errMin_imput : float
 		minimal error in the Tribe Stage of the Koh-Lanta algorithm (default
 		is 1e-9)
 	maxIter_imput : int
 		Maximal number of iterations in the Tribe Stage of the Koh-Lanta
-		 algorithm. If equals to 0, mean imputation is  considered (default is
+		algorithm. If equals to 0, mean imputation is  considered (default is
 		5)
 	NCORES : int
 		The number of cores to be used in the parallelized process. If equal to
@@ -671,8 +795,13 @@ def perf_ddspls(Xs,Y,lambd_min=0,lambd_max=None,n_lambd=1,lambds=None,R=1,
 			"fold":fold}
 		paral_list.append(dicoco)
 	NCORES_w = int(min(NCORES,len(paras[0])))
-	p = Pool(processes=NCORES_w)
-	ERRORS = p.map(getResult, paral_list)
+	if NCORES_w>1:
+		from multiprocessing import Pool
+		p = Pool(processes=NCORES_w)
+		ERRORS = p.map(getResult, paral_list)
+		p.terminate()
+	else:
+		ERRORS = getResult(paral_list[0])
 	paras_out = expandgrid(R,lambds_w)
 	if mode=="reg":
 		ERRORS_OUT = np.zeros((len(paras_out[0]),q))
@@ -693,9 +822,15 @@ def perf_ddspls(Xs,Y,lambd_min=0,lambd_max=None,n_lambd=1,lambds=None,R=1,
 			for ll in range(len(R_koko)):
 				if (R_koko[ll]==R_yo)&(lambd_koko[ll]==lambd_yo):
 					if mode =="reg":
-						errs.append(ERRORS[koko]["RMSE"][ll,])
+						if len(paral_list)!=1:
+							errs.append(ERRORS[koko]["RMSE"][ll,])
+						else:
+							errs.append(ERRORS["RMSE"][ll,])
 					else:
-						errs.append(ERRORS[koko][ll])
+						if len(paral_list)!=1:
+							errs.append(ERRORS[koko][ll])
+						else:
+							errs.append(ERRORS[ll])
 		DIM = len(errs)
 		DIM_2 = 1
 		if type(errs[0])!=float:
@@ -718,6 +853,5 @@ def perf_ddspls(Xs,Y,lambd_min=0,lambd_max=None,n_lambd=1,lambds=None,R=1,
 	if mode!="reg":
 		for iii in range(len(ERRORS_OUT)):
 			DF_OUT[iii,2:DF_OUT.shape[1]] = ERRORS_OUT[iii]
-	p.terminate()
 	return DF_OUT;
 
