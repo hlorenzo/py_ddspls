@@ -15,7 +15,7 @@ from pandas import get_dummies
 import warnings
 with warnings.catch_warnings():
 	warnings.filterwarnings("ignore",category=DeprecationWarning)
-import importlib
+#import importlib
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn import preprocessing
 import random as rd
@@ -26,6 +26,8 @@ def getResult(dic):
 	Xs = dic["Xs"]
 	Y = dic["Y"]
 	q = dic["q"]
+	mu = dic['mu']
+	deflat = dic['deflat']
 	mode = dic["mode"]
 	maxIter_imput = dic["maxIter_imput"]
 	errMin_imput = dic["errMin_imput"]
@@ -59,7 +61,8 @@ def getResult(dic):
 		else:
 			Y_train = Y[pos_train]
 			Y_test = Y[pos_test]
-		mod_0 = ddspls(Xs=X_train,Y=Y_train,lambd=lambd,R=R,mode=mode,
+		mod_0 = ddspls(Xs=X_train,Y=Y_train,lambd=lambd,R=R,deflat=deflat,
+				 mu=mu,mode=mode,
 			errMin_imput=errMin_imput,maxIter_imput=maxIter_imput)
 		Y_est = mod_0.predict(X_test)
 		if mode=="reg":
@@ -116,7 +119,8 @@ def reshape_dict(Xs_top):
 				Xs_w_resh[k] = Xs_here
 	return Xs_w_resh;
 
-def MddsPLS_core(Xs,Y,lambd=0,R=1,mode="reg",verbose=False):
+def MddsPLS_core(Xs,Y,lambd=0,R=1,deflat=False,mu=float('nan'),mode="reg",
+				 verbose=False):
 	Xs_w = reshape_dict(Xs)
 	for k in range(len(Xs_w)):
 				Xs_w[k] = copy.copy(Xs_w[k])
@@ -126,8 +130,9 @@ def MddsPLS_core(Xs,Y,lambd=0,R=1,mode="reg",verbose=False):
 	mu_x_s = {}
 	sd_x_s = {}
 	pos_nas = {}
+	pos_no_na = {}
 	p_s = np.repeat(0,K)
-	xs0 = copy.copy(Xs_w[0])
+	#xs0 = copy.copy(Xs_w[0])
 	for i in range(K):
 		if len(Xs_w[i].shape)!=2:
 			Xs_w[i] = Xs_w[i].to_frame()
@@ -135,8 +140,8 @@ def MddsPLS_core(Xs,Y,lambd=0,R=1,mode="reg",verbose=False):
 		p_s[i] = p_i
 		mu_x_s[i] = Xs_w[i].mean(0)
 		sd_x_s[i] = Xs_w[i].std(0)
-		#pos_nas[i] = np.where(np.isnan(Xs_w[i][:,0]))[0]
-		#pos_no_na = np.where(np.isnan(Xs_w[i][:,0])==False)[0]
+		pos_nas[i] = np.where(np.isnan(Xs_w[i][:,0]))[0]
+		pos_no_na[i] = np.where(np.isnan(Xs_w[i][:,0])==False)[0]
 		#Xs_w[i][pos_no_na,:] = preprocessing.scale(Xs_w[i][pos_no_na,:])
 		if False:
 			if len(pos_nas[i])!=0:
@@ -151,7 +156,8 @@ def MddsPLS_core(Xs,Y,lambd=0,R=1,mode="reg",verbose=False):
 					Y_w = preprocessing.scale(get_dummies(Y)*1.0)
 					x_train = {0:np.delete(Y_w,pos_nas[i],0)}
 					x_test = {0:np.delete(Y_w,pos_no_na,0)}
-				model_init = ddspls(x_train,y_i_train,R=R,lambd=lambd)
+				model_init = ddspls(x_train,y_i_train,R=R,lambd=lambd,
+						deflat=deflat,mu=mu)
 				y_test = model_init.predict(x_test)
 				Xs_w[i][pos_nas[i],:] = y_test
 		Xs_w[i] = preprocessing.scale(Xs_w[i])
@@ -167,22 +173,39 @@ def MddsPLS_core(Xs,Y,lambd=0,R=1,mode="reg",verbose=False):
 	# Create soft-thresholded matrices
 	Ms = {}
 	for i in range(K):
-		M0 = Y_w.T.dot(Xs_w[i])/(n-1)
-		M = abs(M0) - lambd
-		pos_soft = np.where(np.sign(M)==-1)
+		#M0 = Y_w.T.dot(Xs_w[i])/(n-1)
+		#M = abs(M0) - lambd
+		#pos_soft = np.where(np.sign(M)==-1)
+		#for j in range(len(pos_soft[0])):
+		#	M[pos_soft[0][j],pos_soft[1][j]] = 0
+		#Ms[i] = np.multiply(np.sign(M0),M)
+		X_0 = Xs_w[i]
+		Y_0 = Y_w
+		p_k = X_0.shape[1]
+		q = Y_0 .shape[1]
+		M0_r = np.zeros((q,p_k))
+		for i in range(q):
+			for j in range(p_k):
+				if np.std(X_0[:,j])!=0 and np.std(Y_0[:,i])!=0:
+					M0_r[i,j] = np.corrcoef(X_0[:,j],Y_0[:,i])[0,1] 
+		M_r = abs(M0_r) - lambd
+		pos_soft = np.where(np.sign(M_r)==-1)
 		for j in range(len(pos_soft[0])):
-			M[pos_soft[0][j],pos_soft[1][j]] = 0
-		Ms[i] = np.multiply(np.sign(M0),M)
+			M_r[pos_soft[0][j],pos_soft[1][j]] = 0
+		Ms[i] = np.multiply(np.sign(M0_r),M_r)
+	#######
 	u_t_r = {}
 	u_t_r_0 = {}
 	t_r = {}
+	for r in range(R):
+		 t_r[r] = np.zeros((n,K))
 	z_r = {}
 	z_t = {}
 	t_t = {}
 	for k in range(K):
 		if sum(sum(abs(Ms[k])))==0:
 			svd_k = {"v":np.zeros((Ms[k].shape[1], R))}
-		else:
+		elif (not(deflat) and np.isnan(mu)):
 			svd_k_res = np.linalg.svd(Ms[k],full_matrices=False)
 			len_eig = svd_k_res[1].size
 			if len_eig<R:
@@ -217,117 +240,194 @@ def MddsPLS_core(Xs,Y,lambd=0,R=1,mode="reg",verbose=False):
 						v_k[:,r_i] = 0
 			else:
 				if eigs==0:
-					v_k[:,0] = 0				
-			v_k_res = svd_k_res[2].T
+					v_k[:,0] = 0
 			svd_k = {"v":v_k}
+		else:
+			svd_k_res = {}
+			svd_k_res[1] = np.zeros(R)
+			svd_k_res[2] = np.zeros((Ms[k].shape[1], R))
+			z_t[k] = np.zeros((Ms[k].shape[1], R))
+			for r in range(R):
+				if r==0:
+					X_0 = Xs_w[k]
+					Y_0 = Y_w
+				svd_cur = np.linalg.svd(Ms[k],full_matrices=False)
+				len_eig = svd_cur[1].size
+				norm_th_sc = svd_cur[1][0]
+				u_r_def = svd_cur[2].T
+				if norm_th_sc==0:
+					u_r_def = u_r_def*0
+				svd_k_res[2][:,r] = u_r_def.T
+				t_r_def = np.dot(X_0,u_r_def)
+				#t_t[k][:,r] = t_r_def # Update components
+				t_r[r][:,k] = np.dot(X_0,u_r_def).T
+				z_t[k][:,r] = np.dot(Ms[k],u_r_def)
+				svd_k_res[1][r] = np.linalg.norm(t_r_def)
+				norm_sc = svd_k_res[1][r]**2
+				if norm_th_sc!=0:
+					defX = np.dot(t_r_def,np.dot(t_r_def.T,X_0))/norm_sc
+					X_0 +=  - defX
+					if mode=="reg":
+						defY = np.dot(t_r_def,np.dot(t_r_def.T,Y_0))/norm_sc
+						Y_0 +=  - defY
+				##### Deflation and soft thresholding 
+				p_k = X_0.shape[1]
+				q = Y_0.shape[1]
+				M0_r = np.zeros((q,p_k))
+				for i in range(q):
+					for j in range(p_k):
+						if np.std(X_0[:,j])!=0 and np.std(Y_0[:,i])!=0:
+							M0_r[i,j] = np.corrcoef(X_0[:,j],Y_0[:,i])[0,1] 
+				M_r = abs(M0_r) - lambd
+				pos_soft = np.where(np.sign(M_r)==-1)
+				for j in range(len(pos_soft[0])):
+					M_r[pos_soft[0][j],pos_soft[1][j]] = 0
+				Ms[k] = np.multiply(np.sign(M0_r),M_r)
+				#####
+			svd_k = {"v":svd_k_res[2]}
 		u_t_r[k]=svd_k["v"]
 		u_t_r_0[k]=svd_k["v"]
-		z_t[k] = np.dot(Ms[k],u_t_r[k])
-		t_t[k] = np.dot(Xs[k],u_t_r[k])
-		if k==0:
-			for r in range(R):
-				t_r[r] = np.zeros((n, K))
-				z_r[r] = np.zeros((q, K))
-		if R!=1:
-			for r in range(R):
-				t_r[r][:,k] = np.dot(Xs_w[k],u_t_r[k][:,r])
-				z_r[r][:,k] = np.dot(Ms[k],u_t_r[k][:,r])
-		else:
-			if K==1:
-				t_r[0] = np.dot(Xs_w[k],u_t_r[k])
-				z_r[0] = np.dot(Ms[k],u_t_r[k])
+		if not(deflat) and np.isnan(mu):
+			z_t[k] = np.dot(Ms[k],u_t_r[k])
+			t_t[k] = np.dot(Xs[k],u_t_r[k])
+			if k==0:
+				for r in range(R):
+					t_r[r] = np.zeros((n, K))
+					z_r[r] = np.zeros((q, K))
+			if R!=1:
+				for r in range(R):
+					t_r[r][:,k] = np.dot(Xs_w[k],u_t_r[k][:,r])
+					z_r[r][:,k] = np.dot(Ms[k],u_t_r[k][:,r])
 			else:
-				t_r[0][:,k] = np.dot(Xs_w[k],u_t_r[k]).T
-				z_r[0][:,k] = np.dot(Ms[k],u_t_r[k]).T
+				if K==1:
+					t_r[0] = np.dot(Xs_w[k],u_t_r[k])
+					z_r[0] = np.dot(Ms[k],u_t_r[k])
+				else:
+					t_r[0][:,k] = np.dot(Xs_w[k],u_t_r[k]).T
+					z_r[0][:,k] = np.dot(Ms[k],u_t_r[k]).T
 	T_super = np.zeros((n, R))
-	t_all = np.zeros((n, R*K))
+	#t_all = np.zeros((n, R*K))
 	z_all = np.zeros((q, R*K))
-	for k in range(K):
-		z_all[:,np.repeat(k*R,R)+range(R)] = np.array(z_t[k])
-		t_all[:,np.repeat(k*R,R)+range(R)] = np.array(t_t[k])
-	svd_all_python = np.linalg.svd(z_all,full_matrices=False)
-	if svd_all_python[1].size<R:
-		eigs = np.zeros(R)
-		if svd_all_python[1].size==1:
-			eigs[0] = svd_all_python[1]
-		else:
-			eigs[range(svd_all_python[1].size-1)] = svd_all_python[1]
-		if (svd_all_python[2].T).shape[1]<R:
-			additionnal = np.zeros(((svd_all_python[2].T).shape[0],R-(svd_all_python[2].T).shape[1]))
-			u_all = np.concatenate((svd_all_python[2].T,additionnal),axis=1)
+	if np.isnan(mu): # Non deflated non mu solution
+		for k in range(K):
+			z_all[:,np.repeat(k*R,R)+range(R)] = np.array(z_t[k])
+			#t_all[:,np.repeat(k*R,R)+range(R)] = np.array(t_t[k])
+		svd_all_python = np.linalg.svd(z_all,full_matrices=False)
+		if svd_all_python[1].size<R:
+			eigs = np.zeros(R)
+			if svd_all_python[1].size==1:
+				eigs[0] = svd_all_python[1]
+			else:
+				eigs[range(svd_all_python[1].size-1)] = svd_all_python[1]
+			if (svd_all_python[2].T).shape[1]<R:
+				additionnal = np.zeros(((svd_all_python[2].T).shape[0],R-(svd_all_python[2].T).shape[1]))
+				u_all = np.concatenate((svd_all_python[2].T,additionnal),axis=1)
+			else:
+				u_all = svd_all_python[2].T
+			if (svd_all_python[0]).shape[1]<R:
+				additionnal = np.zeros(((svd_all_python[0]).shape[0],R-(svd_all_python[0]).shape[1]))
+				v0 = np.concatenate((svd_all_python[0],additionnal),axis=1)
+			else:
+				v0 = svd_all_python[0]
 		else:
 			u_all = svd_all_python[2].T
-		if (svd_all_python[0]).shape[1]<R:
-			additionnal = np.zeros(((svd_all_python[0]).shape[0],R-(svd_all_python[0]).shape[1]))
-			v0 = np.concatenate((svd_all_python[0],additionnal),axis=1)
-		else:
 			v0 = svd_all_python[0]
-	else:
-		u_all = svd_all_python[2].T
-		v0 = svd_all_python[0]
-	#crosY_T = np.dot(Y_w.T,np.dot(t_all,u_all))
-	#power = (crosY_T**2).mean(0)
-	#orderGood = np.argsort(-power)
-	u_all = u_all#[:,orderGood]
-	V_super = copy.copy(v0)#[:,orderGood])
-	T_super = np.zeros((n,R))
-	u_t_super = {}
-	for k in range(K):
-		beta_k = u_all[np.repeat(k*R,R)+range(R),:]
-		u_t_super[k] = np.dot(u_t_r[k],beta_k)
-		T_super = T_super + np.dot(Xs_w[k],u_t_super[k])
-	vars_current = np.zeros(R)
-	Yt_Y = np.dot(Y_w,Y_w.T)
-	for r in range(R):
-		sc_r = T_super[:,r:(r+1)]
-		var_t_super_r = np.sum(sc_r**2)
-		if var_t_super_r!=0:
-			sc_r_tw = np.dot(sc_r,sc_r.T)
-			deno = np.linalg.norm(Yt_Y)*np.linalg.norm(sc_r_tw)
-			vars_current[r] = np.sum(np.diag(np.dot(Yt_Y,sc_r_tw)))/deno
-	if R>1:
-		ord_ = np.argsort(-vars_current)
-		test = np.sum((ord_-np.arange(R))**2)
-		if test>0:
-			T_super = T_super[:,ord_]
-			V_super = V_super[:,ord_]
-			for k in range(K):
-				u_t_super[k] <- u_t_super[k][:,ord_]
-	S_super = np.dot(Y_w,V_super)
-	svd_all_frak_python = np.linalg.svd(T_super,full_matrices=False)#,s),full_matrices=False)
-	v_ort = copy.copy(svd_all_frak_python[2].T)#svd_all_frak_python[0]
-	u_ort = copy.copy(v_ort)#svd_all_frak_python[2].T)
-	t_ort = np.dot(T_super,v_ort)
-	s_ort = np.dot(S_super,u_ort)
-	# Get regression matrix
-	T_S = np.dot(T_super.T,S_super)
-	Delta_ort = svd_all_frak_python[1]**2
-	if np.sum(Delta_ort)!=0:
-		D_0_inv = copy.copy(Delta_ort)*1.0
-		del_0 = np.where(D_0_inv < 1e-9)
-		no_del_0 = np.where(D_0_inv >= 1e-9)
-		D_0_inv[no_del_0] = 1/D_0_inv[no_del_0]
-		D_0_inv[del_0] =np.zeros(len(del_0))
-		D_0_inv = np.diag(D_0_inv)
-		B_0 = np.dot(np.dot(v_ort,np.dot(D_0_inv,v_ort.T)),T_S)
-	else:
-		B_0 = np.zeros((R,R))
-	if False:
-		alphas = []
-		for r in range(R):
-			n_t_2 = np.dot(t_ort[:,r].T,t_ort[:,r])
-			if n_t_2 != 0:
-				val = np.dot(s_ort[:,r].T,t_ort[:,r])/n_t_2
-				alphas.append(val)
-			else:
-				alphas.append(0)
-	if mode == "reg":
-		B = {}
+		#crosY_T = np.dot(Y_w.T,np.dot(t_all,u_all))
+		#power = (crosY_T**2).mean(0)
+		#orderGood = np.argsort(-power)
+		u_all = u_all#[:,orderGood]
+		V_super = copy.copy(v0)#[:,orderGood])
+		T_super = np.zeros((n,R))
+		u_t_super = {}
 		for k in range(K):
-			B[k] = np.dot(u_t_super[k],np.dot(B_0,V_super.T))#np.dot(u_t_r[k],np.dot(beta_k,v_ort))
-			#for r in range(R):
-			#	B[k][:,r] = B[k][:,r]*alphas[r]
-			#B[k] = np.dot(B[k],np.dot(u_ort.T,V_super.T))
+			beta_k = u_all[np.repeat(k*R,R)+range(R),:]
+			u_t_super[k] = np.dot(u_t_r[k],beta_k)
+			T_super = T_super + np.dot(Xs_w[k],u_t_super[k])
+		vars_current = np.zeros(R)
+		Yt_Y = np.dot(Y_w,Y_w.T)
+		for r in range(R):
+			sc_r = T_super[:,r:(r+1)]
+			var_t_super_r = np.sum(sc_r**2)
+			if var_t_super_r!=0:
+				sc_r_tw = np.dot(sc_r,sc_r.T)
+				deno = np.linalg.norm(Yt_Y)*np.linalg.norm(sc_r_tw)
+				vars_current[r] = np.sum(np.diag(np.dot(Yt_Y,sc_r_tw)))/deno
+		if R>1:
+			ord_ = np.argsort(-vars_current)
+			test = np.sum((ord_-np.arange(R))**2)
+			if test>0:
+				T_super = T_super[:,ord_]
+				V_super = V_super[:,ord_]
+				for k in range(K):
+					u_t_super[k] <- u_t_super[k][:,ord_]
+		S_super = np.dot(Y_w,V_super)
+		svd_all_frak_python = np.linalg.svd(T_super,full_matrices=False)#,s),full_matrices=False)
+		v_ort = copy.copy(svd_all_frak_python[2].T)#svd_all_frak_python[0]
+		u_ort = copy.copy(v_ort)#svd_all_frak_python[2].T)
+		t_ort = np.dot(T_super,v_ort)
+		s_ort = np.dot(S_super,u_ort)
+		# Get regression matrix
+		T_S = np.dot(T_super.T,S_super)
+		Delta_ort = svd_all_frak_python[1]**2
+		if np.sum(Delta_ort)!=0:
+			D_0_inv = copy.copy(Delta_ort)*1.0
+			del_0 = np.where(D_0_inv < 1e-9)
+			no_del_0 = np.where(D_0_inv >= 1e-9)
+			D_0_inv[no_del_0] = 1/D_0_inv[no_del_0]
+			D_0_inv[del_0] =np.zeros(len(del_0))
+			D_0_inv = np.diag(D_0_inv)
+			B_0 = np.dot(np.dot(v_ort,np.dot(D_0_inv,v_ort.T)),T_S)
+		else:
+			B_0 = np.zeros((R,R))
+		if False:
+			alphas = []
+			for r in range(R):
+				n_t_2 = np.dot(t_ort[:,r].T,t_ort[:,r])
+				if n_t_2 != 0:
+					val = np.dot(s_ort[:,r].T,t_ort[:,r])/n_t_2
+					alphas.append(val)
+				else:
+					alphas.append(0)
+	else:
+		B = {}
+		T_super = np.zeros((n,q))
+		T_super_reg = np.zeros((n,R*K))
+		count_reg = 0
+		for r in range(R):
+			for k in range(K):
+				T_super_reg[:,count_reg] = t_r[r][:,k]
+				count_reg = count_reg + 1
+		regulMat = np.diag(np.repeat(n*mu,R*K))
+		regulMat = regulMat + np.dot(T_super_reg.T,T_super_reg)
+		regulMat_Inv = np.linalg.inv(regulMat)
+		Q = np.dot(regulMat_Inv,np.dot(T_super_reg.T,Y))
+		
+		count_reg = 0
+		for k in range(K):
+			B_t = np.zeros((R,q))
+			for r in range(R):
+				B_t[r,:] = Q[count_reg,:]
+				count_reg = count_reg + 1
+			B[k] = np.dot(u_t_r[k],B_t)
+			for jj in range(q):
+				B[k][:,jj] = B[k][:,jj]*sd_y[jj]
+			T_super = T_super + np.dot(Xs[k],B[k])
+			V_super = np.diag(np.repeat(1,q))
+			S_super = Y_w
+			u_all = np.zeros((R,K*R))
+			for iK in range(K):
+				u_all[:,range(iK*R,R+iK*R)] =  np.diag(np.repeat(1,R))
+			t_ort = np.zeros((Xs_w[k].shape[1],R))
+			s_ort = t_ort
+	
+	if mode == "reg":
+		if np.isnan(mu):
+			B = {}
+			for k in range(K):
+				B[k] = np.dot(u_t_super[k],np.dot(B_0,V_super.T))#np.dot(u_t_r[k],np.dot(beta_k,v_ort))
+				#for r in range(R):
+				#	B[k][:,r] = B[k][:,r]*alphas[r]
+				#B[k] = np.dot(B[k],np.dot(u_ort.T,V_super.T))
 	else:
 		if np.sum(t_ort*t_ort)!=0:
 			n_components = min(R,len(set(Y))-1)
@@ -379,7 +479,8 @@ class model_class:
 		the built model according to previous parameters
 
 	"""
-	def __init__(self,u,V_super,ts,beta_comb,T_super,S_super,t_ort,s_ort,B,mu_x_s,sd_x_s,mu_y,sd_y,R,q,Ms,lambd):
+	def __init__(self,u,V_super,ts,beta_comb,T_super,S_super,t_ort,s_ort,B,
+			  mu_x_s,sd_x_s,mu_y,sd_y,R,q,Ms,lambd):
 		self.u = u
 		self.V_super = V_super
 		self.ts = ts
@@ -416,6 +517,12 @@ class ddspls:
 		the number of components to be built, between 1 and the minimum of the
 		number of columns of Y and the total number of co-variables among the
 		all blocks (default is 1)
+	deflat : bool
+		whether or not use deflation to build components. Default value to 
+		False.
+	mu : positive real
+		the Ridge parameter changing the bias of the regression model. If is 
+		'nan', consider the classical ddsPLS. Default to 'nan'.
 	mode : str
 		equals to "reg" in the regression context (and default). Any other
 		choice would produce "classification" analysis.
@@ -440,13 +547,17 @@ class ddspls:
 		Internal method which permits to estimate missing values in the
 		co-variable part.
 	"""
-	def __init__(self,Xs,Y,lambd=0,R=1,mode="reg",errMin_imput=1e-9,
+	def __init__(self,Xs,Y,lambd=0,R=1,mode="reg",
+			  mu=float('nan'),deflat=False,
+			  errMin_imput=1e-9,
 		maxIter_imput=50,verbose=False,model=None):
 		self.Xs = Xs
 		self.Y = Y
 		self.lambd = lambd
 		self.R = R
 		self.mode = mode
+		self.mu = mu
+		self.deflat = deflat
 		self.errMin_imput = errMin_imput
 		self.maxIter_imput = maxIter_imput
 		self.verbose = verbose
@@ -476,6 +587,8 @@ class ddspls:
 			Y = copy.copy(self.Y)
 			lambd = copy.copy(self.lambd)
 			R = copy.copy(self.R)
+			mu = copy.copy(self.mu)
+			deflat = copy.copy(self.deflat)
 			mode = copy.copy(self.mode)
 			errMin_imput = copy.copy(self.errMin_imput)
 			maxIter_imput = copy.copy(self.maxIter_imput)
@@ -514,7 +627,7 @@ class ddspls:
 						model_init = ddspls(x_train,y_k_train,R=R,lambd=lambd)
 						y_test = model_init.predict(x_test)
 						Xs_w[k][id_na[k],:] = y_test
-			mod_0 = MddsPLS_core(Xs_w,Y,lambd=lambd,R=R,mode=mode,verbose=verbose)
+			mod_0 = MddsPLS_core(Xs_w,Y,lambd=lambd,R=R,deflat=deflat,mu=mu,mode=mode,verbose=verbose)
 			if K>1:
 				if sum(sum(abs(mod_0["T_super"])))!=0:
 					err = 2
@@ -535,7 +648,7 @@ class ddspls:
 									Y_i_k = Xs_w[k][:,Var_selected_k]
 									Y_i_k = np.delete(Y_i_k,i_k,axis=0)
 									model_here_0 = MddsPLS_core(Xs_i,Y_i_k,
-										lambd=lambd,R=R)
+										lambd=lambd,R=R,deflat=deflat,mu=mu)
 									model_here = model_class(
 										u=model_here_0["u"],
 										V_super=model_here_0["V_super"],
@@ -567,7 +680,7 @@ class ddspls:
 									for i_var in range(len(Var_selected_k)):
 										var=Var_selected_k[i_var]
 										Xs_w[k][i_k,var] = out[:,i_var].T
-						mod = MddsPLS_core(Xs_w,Y,lambd=lambd,R=R,mode=mode)
+						mod = MddsPLS_core(Xs_w,Y,lambd=lambd,R=R,deflat=deflat,mu=mu,mode=mode)
 						mod["mu_x_s"] = mu_x_s
 						mod["mu_y"] = mu_y
 						mod["sd_y"] = sd_y
@@ -641,7 +754,7 @@ class ddspls:
 			for pp in range(len_pos_no_ok):
 				u_pos_no_ok_pp = mod.u[pos_no_ok[pp]]
 				pos_vars_Y_here[pp] = np.where(np.sum(abs(u_pos_no_ok_pp),
-	                  axis=1)!=0)[0]
+					  axis=1)!=0)[0]
 				number_coeff_no_ok = number_coeff_no_ok + len(pos_vars_Y_here[pp])
 			if number_coeff_no_ok!=0:
 				vars_Y_here = np.zeros((n,number_coeff_no_ok))
@@ -671,7 +784,7 @@ class ddspls:
 						variab_sd_no_0 = np.where(sd_x_0[k_j]!=0)
 						for v_sd_no_0 in variab_sd_no_0:
 							xx[id_xx,v_sd_no_0] = (xx[id_xx,v_sd_no_0] -
-	        mu_x_here[k_j][v_sd_no_0])/sd_x_0[k_j][v_sd_no_0]
+			mu_x_here[k_j][v_sd_no_0])/sd_x_0[k_j][v_sd_no_0]
 					t_X_test[:,r_j*K_h+k_j] = np.dot(xx,u_X_here[k_j][:,r_j])
 			## Estimate missing values
 			res = model_impute_test.predict(t_X_test)
@@ -757,8 +870,8 @@ class ddspls:
 		return newY;
 
 def perf_ddspls(Xs,Y,lambd_min=0,lambd_max=None,n_lambd=1,lambds=None,R=1,
-	kfolds="loo",mode="reg",fold_fixed=None,errMin_imput=1e-9,maxIter_imput=5,
-	NCORES=1):
+				deflat=False,mu=float('nan'),kfolds="loo",mode="reg",fold_fixed=None,
+				errMin_imput=1e-9,maxIter_imput=5,NCORES=1):
 	"""Permits to start cross-validation processes. A parallelized procedure
 	is accessible thanks to parameter NCORES, when >1.
 
@@ -829,7 +942,6 @@ def perf_ddspls(Xs,Y,lambd_min=0,lambd_max=None,n_lambd=1,lambds=None,R=1,
 		Y_w = Y
 	## Cross-Validation design
 	if kfolds=="loo":
-		kfolds_w = n
 		fold = range(n)
 	elif kfolds=="fixed":
 		fold = fold_fixed
@@ -880,7 +992,7 @@ def perf_ddspls(Xs,Y,lambd_min=0,lambd_max=None,n_lambd=1,lambds=None,R=1,
 					decoupe.append(oo[popo])
 	paral_list = []
 	for pos_decoupe in range(max(decoupe)+1):
-		dicoco = {"Xs":Xs_w,"Y":Y_w,"q":q,"mode":mode,
+		dicoco = {"Xs":Xs_w,"Y":Y_w,"q":q,"mode":mode,"mu":mu,"deflat":deflat,
 			"maxIter_imput":maxIter_imput,"errMin_imput":errMin_imput,
 			"paras":paras,"decoupe":decoupe,"pos_decoupe":pos_decoupe,
 			"fold":fold}
