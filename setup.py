@@ -1,11 +1,11 @@
 from setuptools import setup
     
 setup(name='py_ddspls',
-      version='1.1.0',
+      version='1.1.1',
       description='The multi data driven sparse pls package',
       long_description=open('README.txt').read(),
       url='http://github.com/hlorenzo/py_ddspls',
-	  download_url='https://github.com/hlorenzo/py_ddspls/archive/v_110.tar.gz',
+	  download_url='https://github.com/hlorenzo/py_ddspls/archive/v_111.tar.gz',
       author='Hadrien Lorenzo',
       author_email='hadrien.lorenzo.2015@gmail.com',
       license='MIT',
