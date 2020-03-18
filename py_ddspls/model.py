@@ -247,30 +247,39 @@ def MddsPLS_core(Xs,Y,lambd=0,R=1,deflat=False,mu=float('nan'),mode="reg",
 			svd_k_res[1] = np.zeros(R)
 			svd_k_res[2] = np.zeros((Ms[k].shape[1], R))
 			z_t[k] = np.zeros((Ms[k].shape[1], R))
+			Phi_r = {}
 			for r in range(R):
 				if r==0:
 					X_0 = Xs_w[k]
 					Y_0 = Y_w
+					Phi_r[k] = np.diag(np.repeat(1,Ms[k].shape[1]))
 				svd_cur = np.linalg.svd(Ms[k],full_matrices=False)
 				len_eig = svd_cur[1].size
 				norm_th_sc = svd_cur[1][0]
 				u_r_def = svd_cur[2].T
 				if norm_th_sc==0:
 					u_r_def = u_r_def*0
-				svd_k_res[2][:,r] = u_r_def.T
 				t_r_def = np.dot(X_0,u_r_def)
 				#t_t[k][:,r] = t_r_def # Update components
 				t_r[r][:,k] = np.dot(X_0,u_r_def).T
 				z_t[k][:,r] = np.dot(Ms[k],u_r_def)
+				if norm_th_sc>0:
+					nrom_t_r_2 = np.sum(t_r_def**2)
+					bXr = np.dot(t_r_def.T,X_0)/nrom_t_r_2
+				if r!=0:
+					u_r_def = np.dot(Phi_r[k],u_r_def)
+				if norm_th_sc>0:
+					Phi_r[k] = np.dot(Phi_r[k],np.diag(np.repeat(1,Ms[k].shape[1]))-np.dot(u_r_def,bXr))
+				svd_k_res[2][:,r] = u_r_def.T
 				svd_k_res[1][r] = np.linalg.norm(t_r_def)
+				##### Deflation and soft thresholding
 				norm_sc = svd_k_res[1][r]**2
 				if norm_th_sc!=0:
 					defX = np.dot(t_r_def,np.dot(t_r_def.T,X_0))/norm_sc
 					X_0 +=  - defX
 					if mode=="reg":
 						defY = np.dot(t_r_def,np.dot(t_r_def.T,Y_0))/norm_sc
-						Y_0 +=  - defY
-				##### Deflation and soft thresholding 
+						Y_0 +=  - defY 
 				p_k = X_0.shape[1]
 				q = Y_0.shape[1]
 				M0_r = np.zeros((q,p_k))
@@ -401,7 +410,8 @@ def MddsPLS_core(Xs,Y,lambd=0,R=1,deflat=False,mu=float('nan'),mode="reg",
 		regulMat = regulMat + np.dot(T_super_reg.T,T_super_reg)
 		regulMat_Inv = np.linalg.inv(regulMat)
 		Q = np.dot(regulMat_Inv,np.dot(T_super_reg.T,Y))
-		
+		#import pdb
+		#pdb.set_trace()
 		count_reg = 0
 		for k in range(K):
 			B_t = np.zeros((R,q))
