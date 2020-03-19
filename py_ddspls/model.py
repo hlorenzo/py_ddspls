@@ -29,8 +29,6 @@ def getResult(dic):
 	mu = dic['mu']
 	deflat = dic['deflat']
 	mode = dic["mode"]
-	maxIter_imput = dic["maxIter_imput"]
-	errMin_imput = dic["errMin_imput"]
 	paras = dic["paras"]
 	decoupe = dic["decoupe"]
 	pos_decoupe = dic["pos_decoupe"]
@@ -62,8 +60,7 @@ def getResult(dic):
 			Y_train = Y[pos_train]
 			Y_test = Y[pos_test]
 		mod_0 = ddspls(Xs=X_train,Y=Y_train,lambd=lambd,R=R,deflat=deflat,
-				 mu=mu,mode=mode,
-			errMin_imput=errMin_imput,maxIter_imput=maxIter_imput)
+				 mu=mu,mode=mode)
 		Y_est = mod_0.predict(X_test)
 		if mode=="reg":
 			error_here = Y_est - Y_test
@@ -184,10 +181,10 @@ def MddsPLS_core(Xs,Y,lambd=0,R=1,deflat=False,mu=float('nan'),mode="reg",
 		p_k = X_0.shape[1]
 		q = Y_0 .shape[1]
 		M0_r = np.zeros((q,p_k))
-		for i in range(q):
+		for i_q in range(q):
 			for j in range(p_k):
-				if np.std(X_0[:,j])!=0 and np.std(Y_0[:,i])!=0:
-					M0_r[i,j] = np.corrcoef(X_0[:,j],Y_0[:,i])[0,1] 
+				if np.std(X_0[:,j])!=0 and np.std(Y_0[:,i_q])!=0:
+					M0_r[i_q,j] = np.corrcoef(X_0[:,j],Y_0[:,i_q])[0,1] 
 		M_r = abs(M0_r) - lambd
 		pos_soft = np.where(np.sign(M_r)==-1)
 		for j in range(len(pos_soft[0])):
@@ -257,6 +254,8 @@ def MddsPLS_core(Xs,Y,lambd=0,R=1,deflat=False,mu=float('nan'),mode="reg",
 				len_eig = svd_cur[1].size
 				norm_th_sc = svd_cur[1][0]
 				u_r_def = svd_cur[2].T
+				if u_r_def.shape[1]!=1:
+					u_r_def = u_r_def[:,0]
 				if norm_th_sc==0:
 					u_r_def = u_r_def*0
 				t_r_def = np.dot(X_0,u_r_def)
@@ -410,8 +409,6 @@ def MddsPLS_core(Xs,Y,lambd=0,R=1,deflat=False,mu=float('nan'),mode="reg",
 		regulMat = regulMat + np.dot(T_super_reg.T,T_super_reg)
 		regulMat_Inv = np.linalg.inv(regulMat)
 		Q = np.dot(regulMat_Inv,np.dot(T_super_reg.T,Y))
-		#import pdb
-		#pdb.set_trace()
 		count_reg = 0
 		for k in range(K):
 			B_t = np.zeros((R,q))
@@ -445,10 +442,14 @@ def MddsPLS_core(Xs,Y,lambd=0,R=1,deflat=False,mu=float('nan'),mode="reg",
 			B.fit(T_super,Y)
 		else:
 			B = None
+	def noNul(uu):
+		out = np.where(np.sum(abs(uu),axis=1)!=0)[0]
+		return out
+	selectedVar = dict((k,noNul(v)) for k,v in u_t_r.items())
 	out = {"u":u_t_r,"V_super":V_super,"ts":t_r,"beta_comb":u_all,"T_super":T_super,"S_super":S_super,
 	"t_ort":t_ort,"s_ort":s_ort,"B":B,"mu_x_s":mu_x_s,
 	"sd_x_s":sd_x_s,"mu_y":mu_y,"sd_y":sd_y,"R":R,"q":q,
-	"Ms":Ms,"lambd":lambd}
+	"Ms":Ms,"lambd":lambd,"selectedVar":selectedVar}
 	return out;
 
 class model_class:
@@ -476,13 +477,6 @@ class model_class:
 	mode : str
 		equals to "reg" in the regression context (and default). Any other
 		choice would produce "classification" analysis.
-	errMin_imput : float
-		minimal error in the Tribe Stage of the Koh-Lanta algorithm (default
-		is 1e-9)
-	maxIter_imput : int
-		Maximal number of iterations in the Tribe Stage of the Koh-Lanta
-		algorithm. If equals to 0, mean imputation is  considered (default is
-		5)
 	verbose : bool
 		if TRUE, print specificities of the object (default is false)
 	model : ddspls
@@ -490,7 +484,7 @@ class model_class:
 
 	"""
 	def __init__(self,u,V_super,ts,beta_comb,T_super,S_super,t_ort,s_ort,B,
-			  mu_x_s,sd_x_s,mu_y,sd_y,R,q,Ms,lambd):
+			  mu_x_s,sd_x_s,mu_y,sd_y,R,q,Ms,lambd,selectedVar):
 		self.u = u
 		self.V_super = V_super
 		self.ts = ts
@@ -508,6 +502,7 @@ class model_class:
 		self.q = q
 		self.Ms = Ms
 		self.lambd = lambd
+		self.selectedVar=selectedVar
 
 class ddspls:
 	"""Main class of the package. Filled with propoerties of any built
@@ -536,13 +531,6 @@ class ddspls:
 	mode : str
 		equals to "reg" in the regression context (and default). Any other
 		choice would produce "classification" analysis.
-	errMin_imput : float
-		minimal error in the Tribe Stage of the Koh-Lanta algorithm (default
-		is 1e-9)
-	maxIter_imput : int
-		Maximal number of iterations in the Tribe Stage of the Koh-Lanta
-		algorithm. If equals to 0, mean imputation is  considered (default is
-		5)
 	verbose : bool
 		if TRUE, print specificities of the object (default is false)
 	model : model_class
@@ -557,10 +545,8 @@ class ddspls:
 		Internal method which permits to estimate missing values in the
 		co-variable part.
 	"""
-	def __init__(self,Xs,Y,lambd=0,R=1,mode="reg",
-			  mu=float('nan'),deflat=False,
-			  errMin_imput=1e-9,
-		maxIter_imput=50,verbose=False,model=None):
+	def __init__(self,Xs,Y,lambd=0,R=1,mode="reg",mu=float('nan'),deflat=False,
+			  verbose=False,model=None,selectedVar=None):
 		self.Xs = Xs
 		self.Y = Y
 		self.lambd = lambd
@@ -568,15 +554,14 @@ class ddspls:
 		self.mode = mode
 		self.mu = mu
 		self.deflat = deflat
-		self.errMin_imput = errMin_imput
-		self.maxIter_imput = maxIter_imput
 		self.verbose = verbose
 		self.model = model
-		n = Xs[0].shape[0]
-		if n!=1:
-			self.getModel(self.model)
+		n = Y.shape[0]
+		if n!=1:# or model is not None:
+			self.getModel(model)
+			self.selectedVar=self.model.selectedVar
 		else:
-			self.model = {}
+			self.model = {}		
 
 	def getModel(self,model):
 		"""Permits to build the Python ddsPLS model according to the chosen
@@ -600,10 +585,8 @@ class ddspls:
 			mu = copy.copy(self.mu)
 			deflat = copy.copy(self.deflat)
 			mode = copy.copy(self.mode)
-			errMin_imput = copy.copy(self.errMin_imput)
-			maxIter_imput = copy.copy(self.maxIter_imput)
 			verbose = copy.copy(self.verbose)
-			has_converged = maxIter_imput
+			nb_iterations = 1
 			id_na = {}
 			na_lengths = 0
 			mu_x_s = {}
@@ -611,10 +594,6 @@ class ddspls:
 			mu_y = Y.mean(0)
 			sd_y = Y.std(0)
 			for k in range(K):
-				if K>1:
-					if Xs_w[1][0,0] == 0.:
-						import pdb
-						pdb.set_trace()
 				id_na[k] = np.where(np.isnan(Xs_w[k][:,0]))[0]
 				na_lengths = na_lengths + len(id_na[k])
 				mu_x_s[k] = np.delete(Xs_w[k],id_na[k],0).mean(0)
@@ -634,16 +613,22 @@ class ddspls:
 							Y_w = preprocessing.scale(get_dummies(Y)*1.0)
 							x_train = {0:np.delete(Y_w,id_na[k],0)}
 							x_test = {0:np.delete(Y_w,pos_no_na,0)}
-						model_init = ddspls(x_train,y_k_train,R=R,lambd=lambd)
+						model_init = ddspls(x_train,y_k_train,
+						  R=R,
+						  lambd=lambd,
+						  deflat=deflat,
+						  mu=mu)
 						y_test = model_init.predict(x_test)
 						Xs_w[k][id_na[k],:] = y_test
 			mod_0 = MddsPLS_core(Xs_w,Y,lambd=lambd,R=R,deflat=deflat,mu=mu,mode=mode,verbose=verbose)
+			selectedVar_0 = mod_0['selectedVar']
+			nb_sel_0 = sum([len(v) for (k,v) in selectedVar_0.items()])
 			if K>1:
-				if sum(sum(abs(mod_0["T_super"])))!=0:
-					err = 2
+				if nb_sel_0!=0:
+					different = True
 					iterat = 0
-					while (iterat < maxIter_imput)&(err>errMin_imput):
-						iterat = iterat+1
+					while different:
+						iterat += 1
 						for k in range(K):
 							if len(id_na[k])>0:
 								no_k = np.arange(K)
@@ -652,10 +637,8 @@ class ddspls:
 								Xs_i = mod_0["S_super"]
 								Xs_i = np.delete(Xs_i, i_k, axis=0)
 								newX_i = mod_0["S_super"][i_k,:]
-								u_k = mod_0["u"][k].T[0]
-								Var_selected_k = np.where(abs(u_k)!=0)[0]
-								if(len(Var_selected_k)>0):
-									Y_i_k = Xs_w[k][:,Var_selected_k]
+								if(len(selectedVar_0[k])>0):
+									Y_i_k = Xs_w[k][:,selectedVar_0[k]]
 									Y_i_k = np.delete(Y_i_k,i_k,axis=0)
 									model_here_0 = MddsPLS_core(Xs_i,Y_i_k,
 										lambd=lambd,R=R,deflat=deflat,mu=mu)
@@ -675,40 +658,37 @@ class ddspls:
 										R=model_here_0["R"],
 										q=model_here_0["q"],
 										Ms=model_here_0["Ms"],
-										lambd=model_here_0["lambd"])
+										lambd=model_here_0["lambd"],
+										selectedVar=model_here_0["selectedVar"])
 									mod_i_k = ddspls(
-										Xs_i,
-										Y_i_k,
-										lambd,
-										R,
-										"reg",
-										errMin_imput,
-										maxIter_imput,
-										False,
-										model_here)
+										Xs=Xs_i,
+										Y=Y_i_k,
+										lambd=lambd,
+										R=R,
+										mode="reg",
+										mu=mu,
+										deflat=deflat,
+										verbose=False,
+										model=model_here)
 									out = mod_i_k.predict(newX_i)
-									for i_var in range(len(Var_selected_k)):
-										var=Var_selected_k[i_var]
+									for i_var in range(len(selectedVar_0[k])):
+										var=selectedVar_0[k][i_var]
 										Xs_w[k][i_k,var] = out[:,i_var].T
 						mod = MddsPLS_core(Xs_w,Y,lambd=lambd,R=R,deflat=deflat,mu=mu,mode=mode)
 						mod["mu_x_s"] = mu_x_s
 						mod["mu_y"] = mu_y
 						mod["sd_y"] = sd_y
 						mod["sd_x_s"] = sd_x_s
-						if sum(sum(abs(mod["T_super"])))!=0:
-							err = 0
-							for r in range(R):
-								n_new = np.sqrt(sum(np.square(mod["t_ort"][:,r])))
-								n_0 = np.sqrt(sum(np.square(mod_0["t_ort"][:,r])))
-								if n_new*n_0!=0:
-									err_r = 1 - abs(np.dot(mod["t_ort"][:,r].T,mod_0["t_ort"][:,r]))/(n_new*n_0)
-									err = err + err_r
-						else:
-							err = 0
-						if iterat >= maxIter_imput:
-							has_converged = 0
-						if err < errMin_imput:
-							has_converged = iterat
+						selectedVar = mod['selectedVar']
+						V_0 = selectedVar_0
+						V = selectedVar
+						different = False
+						for i_test in range(K):
+							if set(V[i_test])!=set(V_0[i_test]):
+								different = True
+						if not different:
+							nb_iterations = iterat
+						selectedVar_0 = selectedVar
 						mod_0 = mod
 			mod = mod_0
 			self.Xs = Xs_w
@@ -717,8 +697,8 @@ class ddspls:
 					  t_ort=mod["t_ort"],s_ort=mod["s_ort"],B=mod["B"],
 					  mu_x_s=mod["mu_x_s"],sd_x_s=mod["sd_x_s"],mu_y=mod["mu_y"],
 					  sd_y=mod["sd_y"],R=mod["R"],q=mod["q"],Ms=mod["Ms"],
-					  lambd=mod["lambd"])
-			self.has_converged = has_converged
+					  lambd=mod["lambd"],selectedVar=mod["selectedVar"])
+			self.nb_iterations = nb_iterations
 
 	def fill_X_test(self,X_test_0):
 		"""Internal method which permits to estimate missing values in the
@@ -761,6 +741,7 @@ class ddspls:
 			pos_no_ok = range(K)
 			pos_no_ok = [x for x in pos_no_ok if x not in pos_ok]
 			len_pos_no_ok = len(pos_no_ok)
+			
 			for pp in range(len_pos_no_ok):
 				u_pos_no_ok_pp = mod.u[pos_no_ok[pp]]
 				pos_vars_Y_here[pp] = np.where(np.sum(abs(u_pos_no_ok_pp),
@@ -774,14 +755,14 @@ class ddspls:
 					len_vars_k_id = len(vars_k_id)
 					if len_vars_k_id!=0:
 						for j in range(len_vars_k_id):
-							vars_Y_here[:,C_pos+j] = self.Xs[pos_no_ok[k_id]][:,j]
+							to_use = self.Xs[pos_no_ok[k_id]][:,vars_k_id[j]]
+							vars_Y_here[:,C_pos+j] = to_use
 						C_pos = C_pos + len_vars_k_id
 			else:
 				vars_Y_here = np.zeros((n,1))
 			## General model
-			model_impute_test = ddspls(Xs=t_X_here,Y=vars_Y_here,
-				lambd=lambd,R=R,
-				maxIter_imput=self.maxIter_imput)
+			t_X_here_reshape = reshape_dict(t_X_here)
+			model_impute_test = ddspls(Xs=t_X_here_reshape,Y=vars_Y_here,lambd=lambd,R=R)
 			## Create test dataset
 			n_test = 1
 			t_X_test=np.zeros((n_test,t_X_here.shape[1]))
@@ -793,8 +774,7 @@ class ddspls:
 					for id_xx in range(n_test):
 						variab_sd_no_0 = np.where(sd_x_0[k_j]!=0)
 						for v_sd_no_0 in variab_sd_no_0:
-							xx[id_xx,v_sd_no_0] = (xx[id_xx,v_sd_no_0] -
-			mu_x_here[k_j][v_sd_no_0])/sd_x_0[k_j][v_sd_no_0]
+							xx[id_xx,v_sd_no_0] = (xx[id_xx,v_sd_no_0] - mu_x_here[k_j][v_sd_no_0])/sd_x_0[k_j][v_sd_no_0]
 					t_X_test[:,r_j*K_h+k_j] = np.dot(xx,u_X_here[k_j][:,r_j])
 			## Estimate missing values
 			res = model_impute_test.predict(t_X_test)
@@ -835,7 +815,7 @@ class ddspls:
 				id_na_test.append(np.isnan(newX_w[k][0,0])*1)
 				na_test_lengths = na_test_lengths + id_na_test[k]
 			if na_test_lengths!=0:
-				if (K>1)&(self.maxIter_imput>0):
+				if K>1:
 					newX_w = self.fill_X_test(newX)
 				else:
 					for k in range(K):
@@ -880,8 +860,8 @@ class ddspls:
 		return newY;
 
 def perf_ddspls(Xs,Y,lambd_min=0,lambd_max=None,n_lambd=1,lambds=None,R=1,
-				deflat=False,mu=float('nan'),kfolds="loo",mode="reg",fold_fixed=None,
-				errMin_imput=1e-9,maxIter_imput=5,NCORES=1):
+				deflat=False,mu=float('nan'),kfolds="loo",mode="reg",
+				fold_fixed=None,NCORES=1):
 	"""Permits to start cross-validation processes. A parallelized procedure
 	is accessible thanks to parameter NCORES, when >1.
 
@@ -921,13 +901,6 @@ def perf_ddspls(Xs,Y,lambd_min=0,lambd_max=None,n_lambd=1,lambds=None,R=1,
 		Default is *None* which corresponds to classical f-folds cross-
 		validation. Only taken into account if *kfolds==fixed* (default is 
 		*None*)
-	errMin_imput : float
-		minimal error in the Tribe Stage of the Koh-Lanta algorithm (default
-		is 1e-9)
-	maxIter_imput : int
-		Maximal number of iterations in the Tribe Stage of the Koh-Lanta
-		algorithm. If equals to 0, mean imputation is  considered (default is
-		5)
 	NCORES : int
 		The number of cores to be used in the parallelized process. If equal to
 		1 then no parallel structure is deployed (default is 1)
@@ -969,7 +942,7 @@ def perf_ddspls(Xs,Y,lambd_min=0,lambd_max=None,n_lambd=1,lambds=None,R=1,
 	if lambds==None:
 		if lambd_max == None:
 			MMss0 = ddspls(Xs,Y,lambd = 0,R = 1,
-				mode = mode,maxIter_imput = 0).model.Ms
+				mode = mode).model.Ms
 			K = len(MMss0)
 			lambd_max_w = 0
 			for k in range(K):
@@ -1003,7 +976,6 @@ def perf_ddspls(Xs,Y,lambd_min=0,lambd_max=None,n_lambd=1,lambds=None,R=1,
 	paral_list = []
 	for pos_decoupe in range(max(decoupe)+1):
 		dicoco = {"Xs":Xs_w,"Y":Y_w,"q":q,"mode":mode,"mu":mu,"deflat":deflat,
-			"maxIter_imput":maxIter_imput,"errMin_imput":errMin_imput,
 			"paras":paras,"decoupe":decoupe,"pos_decoupe":pos_decoupe,
 			"fold":fold}
 		paral_list.append(dicoco)
