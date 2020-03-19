@@ -140,23 +140,22 @@ def MddsPLS_core(Xs,Y,lambd=0,R=1,deflat=False,mu=float('nan'),mode="reg",
 		pos_nas[i] = np.where(np.isnan(Xs_w[i][:,0]))[0]
 		pos_no_na[i] = np.where(np.isnan(Xs_w[i][:,0])==False)[0]
 		#Xs_w[i][pos_no_na,:] = preprocessing.scale(Xs_w[i][pos_no_na,:])
-		if False:
-			if len(pos_nas[i])!=0:
-				# Imputation to mean
-				#Xs_w[i][pos_nas[i],:] = 0
-				# Imputation to best estimation according to Y
-				y_i_train = np.delete(Xs_w[i],pos_nas[i],0)
-				if mode=="reg":
-					x_train = {0:np.delete(Y,pos_nas[i],0)}
-					x_test = {0:np.delete(Y,pos_no_na,0)}
-				else:
-					Y_w = preprocessing.scale(get_dummies(Y)*1.0)
-					x_train = {0:np.delete(Y_w,pos_nas[i],0)}
-					x_test = {0:np.delete(Y_w,pos_no_na,0)}
-				model_init = ddspls(x_train,y_i_train,R=R,lambd=lambd,
-						deflat=deflat,mu=mu)
-				y_test = model_init.predict(x_test)
-				Xs_w[i][pos_nas[i],:] = y_test
+		if len(pos_nas[i])!=0:
+			# Imputation to mean
+			#Xs_w[i][pos_nas[i],:] = 0
+			# Imputation to best estimation according to Y
+			y_i_train = np.delete(Xs_w[i],pos_nas[i],0)
+			if mode=="reg":
+				x_train = {0:np.delete(Y,pos_nas[i],0)}
+				x_test = {0:np.delete(Y,pos_no_na,0)}
+			else:
+				Y_w = preprocessing.scale(get_dummies(Y)*1.0)
+				x_train = {0:np.delete(Y_w,pos_nas[i],0)}
+				x_test = {0:np.delete(Y_w,pos_no_na,0)}
+			model_init = ddspls(x_train,y_i_train,R=R,lambd=lambd,
+					deflat=deflat,mu=mu)
+			y_test = model_init.predict(x_test)
+			Xs_w[i][pos_nas[i],:] = y_test
 		Xs_w[i] = preprocessing.scale(Xs_w[i])
 	# Standardize Y
 	if mode != "reg":
@@ -432,6 +431,8 @@ def MddsPLS_core(Xs,Y,lambd=0,R=1,deflat=False,mu=float('nan'),mode="reg",
 			B = {}
 			for k in range(K):
 				B[k] = np.dot(u_t_super[k],np.dot(B_0,V_super.T))#np.dot(u_t_r[k],np.dot(beta_k,v_ort))
+			for jj in range(q):
+				B[k][:,jj] = B[k][:,jj]*sd_y[jj]
 				#for r in range(R):
 				#	B[k][:,r] = B[k][:,r]*alphas[r]
 				#B[k] = np.dot(B[k],np.dot(u_ort.T,V_super.T))
@@ -579,7 +580,7 @@ class ddspls:
 			Xs_w = {}
 			for k in range(K):
 				Xs_w[k] = copy.copy(Xs[k])
-			Y = copy.copy(self.Y)
+			Y_work = copy.copy(self.Y)
 			lambd = copy.copy(self.lambd)
 			R = copy.copy(self.R)
 			mu = copy.copy(self.mu)
@@ -591,8 +592,8 @@ class ddspls:
 			na_lengths = 0
 			mu_x_s = {}
 			sd_x_s = {}
-			mu_y = Y.mean(0)
-			sd_y = Y.std(0)
+			mu_y = Y_work.mean(0)
+			sd_y = Y_work.std(0)
 			for k in range(K):
 				id_na[k] = np.where(np.isnan(Xs_w[k][:,0]))[0]
 				na_lengths = na_lengths + len(id_na[k])
@@ -607,10 +608,10 @@ class ddspls:
 						#	Xs_w[k][k_ik,:] = mu_k
 						y_k_train = np.delete(Xs_w[k],id_na[k],0)
 						if mode=="reg":
-							x_train = {0:np.delete(Y,id_na[k],0)}
-							x_test = {0:np.delete(Y,pos_no_na,0)}
+							x_train = {0:np.delete(Y_work,id_na[k],0)}
+							x_test = {0:np.delete(Y_work,pos_no_na,0)}
 						else:
-							Y_w = preprocessing.scale(get_dummies(Y)*1.0)
+							Y_w = preprocessing.scale(get_dummies(Y_work)*1.0)
 							x_train = {0:np.delete(Y_w,id_na[k],0)}
 							x_test = {0:np.delete(Y_w,pos_no_na,0)}
 						model_init = ddspls(x_train,y_k_train,
@@ -620,7 +621,7 @@ class ddspls:
 						  mu=mu)
 						y_test = model_init.predict(x_test)
 						Xs_w[k][id_na[k],:] = y_test
-			mod_0 = MddsPLS_core(Xs_w,Y,lambd=lambd,R=R,deflat=deflat,mu=mu,mode=mode,verbose=verbose)
+			mod_0 = MddsPLS_core(Xs_w,Y_work,lambd=lambd,R=R,deflat=deflat,mu=mu,mode=mode,verbose=verbose)
 			selectedVar_0 = mod_0['selectedVar']
 			nb_sel_0 = sum([len(v) for (k,v) in selectedVar_0.items()])
 			if K>1:
@@ -674,7 +675,7 @@ class ddspls:
 									for i_var in range(len(selectedVar_0[k])):
 										var=selectedVar_0[k][i_var]
 										Xs_w[k][i_k,var] = out[:,i_var].T
-						mod = MddsPLS_core(Xs_w,Y,lambd=lambd,R=R,deflat=deflat,mu=mu,mode=mode)
+						mod = MddsPLS_core(Xs_w,Y_work,lambd=lambd,R=R,deflat=deflat,mu=mu,mode=mode)
 						mod["mu_x_s"] = mu_x_s
 						mod["mu_y"] = mu_y
 						mod["sd_y"] = sd_y
@@ -723,7 +724,7 @@ class ddspls:
 		pos_vars_Y_here,t_X_here,number_coeff_no_ok = {},{},0
 		for k in range(K):
 			id_na_test.append((np.isnan(X_test_w[k][:,0]))[0]*1)
-			na_test_lengths = na_test_lengths + id_na_test[k]
+			na_test_lengths += id_na_test[k]
 		if na_test_lengths != 0:
 			pos_ok = np.where(np.array(id_na_test)==0)[0]
 			len_pos_ok = len(pos_ok)
@@ -740,8 +741,7 @@ class ddspls:
 			## Create to be predicted matrix train
 			pos_no_ok = range(K)
 			pos_no_ok = [x for x in pos_no_ok if x not in pos_ok]
-			len_pos_no_ok = len(pos_no_ok)
-			
+			len_pos_no_ok = len(pos_no_ok)			
 			for pp in range(len_pos_no_ok):
 				u_pos_no_ok_pp = mod.u[pos_no_ok[pp]]
 				pos_vars_Y_here[pp] = np.where(np.sum(abs(u_pos_no_ok_pp),
@@ -766,7 +766,7 @@ class ddspls:
 			## Create test dataset
 			n_test = 1
 			t_X_test=np.zeros((n_test,t_X_here.shape[1]))
-			K_h = len(np.where(id_na_test==False)[0])
+			K_h = np.sum(np.repeat(1,len(id_na_test))-id_na_test)#len(np.where(id_na_test==0)[0])
 			for r_j in range(R):
 				for k_j in range(K_h):
 					kk = pos_ok[k_j]
@@ -831,7 +831,7 @@ class ddspls:
 			if self.mode=="reg":
 				newY = np.zeros((1,q))
 				for k in range(K):
-					newY = newY + np.dot(newX_w_out[k],mod.B[k])
+					newY += np.dot(newX_w_out[k],mod.B[k])
 				for q_i in range(q):
 					newY[0,q_i] = newY[0,q_i]*mod.sd_y[q_i]+mod.mu_y[q_i]
 			else:
