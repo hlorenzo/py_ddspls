@@ -430,12 +430,9 @@ def MddsPLS_core(Xs,Y,lambd=0,R=1,deflat=False,mu=float('nan'),mode="reg",
 		if np.isnan(mu):
 			B = {}
 			for k in range(K):
-				B[k] = np.dot(u_t_super[k],np.dot(B_0,V_super.T))#np.dot(u_t_r[k],np.dot(beta_k,v_ort))
-			for jj in range(q):
-				B[k][:,jj] = B[k][:,jj]*sd_y[jj]
-				#for r in range(R):
-				#	B[k][:,r] = B[k][:,r]*alphas[r]
-				#B[k] = np.dot(B[k],np.dot(u_ort.T,V_super.T))
+				B[k] = np.dot(u_t_super[k],np.dot(B_0,V_super.T))
+				for jj in range(q):
+					B[k][:,jj] = B[k][:,jj]*sd_y[jj]
 	else:
 		if np.sum(t_ort*t_ort)!=0:
 			n_components = min(R,len(set(Y))-1)
@@ -770,7 +767,7 @@ class ddspls:
 			for r_j in range(R):
 				for k_j in range(K_h):
 					kk = pos_ok[k_j]
-					xx = X_test_w[kk]
+					xx = copy.copy(X_test_w[kk])
 					for id_xx in range(n_test):
 						variab_sd_no_0 = np.where(sd_x_0[k_j]!=0)
 						for v_sd_no_0 in variab_sd_no_0:
@@ -833,7 +830,7 @@ class ddspls:
 				for k in range(K):
 					newY += np.dot(newX_w_out[k],mod.B[k])
 				for q_i in range(q):
-					newY[0,q_i] = newY[0,q_i]*mod.sd_y[q_i]+mod.mu_y[q_i]
+					newY[0,q_i] = mod.mu_y[q_i] + newY[0,q_i]
 			else:
 				if mod.B != None:
 					t_r_all = np.zeros((1,K*R))
@@ -844,6 +841,8 @@ class ddspls:
 					newY = mod.B.predict(df_new)
 				else:
 					newY = rd.sample(set(self.Y),1)
+			for k in range(K):
+				newX_w_out[k] = newX_w_out[k]*mod.sd_x_s[k]+mod.mu_x_s[k]
 		else:
 			if self.mode=="reg":
 				newY = np.zeros((n_new,q))	
